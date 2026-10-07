@@ -6,7 +6,7 @@ resources:
   - ingress.yaml
 patches:
   - target:
-      kind: Deployment
+      kind: Rollout
       name: sample-app
     patch: |-
       - op: replace
