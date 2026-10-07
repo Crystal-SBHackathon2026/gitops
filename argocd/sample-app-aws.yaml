@@ -1,5 +1,5 @@
 # Argo CD Application: GitOps 레포의 aws overlay를 해당 클러스터에 동기화한다.
-# destination.server는 클러스터를 Argo CD에 등록한 뒤 실제 주소로 바꾼다.
+# destination.server는 EKS 클러스터(oneaction, ap-northeast-2)를 Argo CD에 등록한 뒤 실제 API 주소로 바꾼다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
