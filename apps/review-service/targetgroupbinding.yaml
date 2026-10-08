@@ -1,5 +1,5 @@
 # 플랫폼 ALB(oneaction-alb) → platform-tg → Service platform:8080.
-# 인프라 EKS_HANDOFF.md 의 예시와 같다. EKS 6단계(찬건님)와 같이 적용한 뒤 kustomization.yaml resources 에 추가한다.
+# 인프라 EKS_HANDOFF.md 의 예시와 같다. 타깃 그룹은 Terraform alb 스택 소유 — LBC 는 타깃(파드 IP) 등록만 한다.
 apiVersion: elbv2.k8s.aws/v1beta1
 kind: TargetGroupBinding
 metadata:
