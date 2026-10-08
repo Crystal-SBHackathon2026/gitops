@@ -1,0 +1,20 @@
+# Argo CD Application: 검토 서비스를 oneaction EKS 의 platform 네임스페이스에 동기화한다.
+# platform 네임스페이스와 review-db-credentials 는 인프라(ESO)가 만들므로 CreateNamespace 를 쓰지 않는다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: review-service-aws
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Crystal-SBHackathon2026/gitops.git
+    targetRevision: main
+    path: apps/review-service
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

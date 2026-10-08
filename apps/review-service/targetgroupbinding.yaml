@@ -1,0 +1,12 @@
+# 플랫폼 ALB(oneaction-alb) → platform-tg → Service platform:8080.
+# 인프라 EKS_HANDOFF.md 의 예시와 같다. EKS 6단계(찬건님)와 같이 적용한 뒤 kustomization.yaml resources 에 추가한다.
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: platform
+spec:
+  serviceRef:
+    name: platform
+    port: 8080
+  targetGroupARN: arn:aws:elasticloadbalancing:ap-northeast-2:236550433066:targetgroup/platform-tg/7a134c91b8f670f4
+  targetType: ip

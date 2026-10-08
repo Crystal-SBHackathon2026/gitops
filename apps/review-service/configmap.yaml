@@ -1,0 +1,16 @@
+# 비밀이 아닌 접속 정보. 비밀 값은 Secret 으로만 넣는다.
+#  - review-db-credentials: DB username·password (인프라 ESO 가 RDS Secret 에서 동기화)
+#  - review-service-secrets: ANTHROPIC_API_KEY·GITHUB_TOKEN·GITHUB_WEBHOOK_SECRET (ExternalSecret 준비 전까지 없을 수 있다)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: review-service
+data:
+  DB_HOST: oneaction-review-db.cfwu8m0qiqk1.ap-northeast-2.rds.amazonaws.com
+  DB_PORT: "5432"
+  DB_NAME: oneaction_review
+  DB_SSLMODE: require  # RDS 파라미터 그룹이 rds.force_ssl=1
+  # MSK apply 뒤 Terraform infra/msk output bootstrap_brokers 값으로 바꾼다 (PLAINTEXT, 9092)
+  KAFKA_BOOTSTRAP: "REPLACE_WITH_MSK_BOOTSTRAP_BROKERS"
+  REVIEW_LLM_MODEL: claude-sonnet-5-5
+  GITHUB_CI_APP_SLUG: github-actions

@@ -1,0 +1,76 @@
+# Review API. Service 이름 platform·포트 8080 은 플랫폼 ALB 타깃 그룹(platform-tg, IP 타입, GET /healthz)과 맞춘다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-api
+  labels:
+    app: review-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-api
+  template:
+    metadata:
+      labels:
+        app: review-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/crystal-sbhackathon2026/review-api
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: review-service
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: {name: review-db-credentials, key: username}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: review-db-credentials, key: password}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: GITHUB_TOKEN, optional: true}
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: GITHUB_WEBHOOK_SECRET, optional: true}
+            - name: ARGOCD_WEBHOOK_TOKEN  # 있으면 /webhooks/argocd 가 Authorization: Bearer 를 확인한다
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: ARGOCD_WEBHOOK_TOKEN, optional: true}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform
+  labels:
+    app: review-api
+spec:
+  selector:
+    app: review-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

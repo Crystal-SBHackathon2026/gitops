@@ -8,6 +8,7 @@ apps/sample-app/
   overlays/local/       부산 로컬 (k3s)
   overlays/aws/         서울 (EKS, ap-northeast-2)
   overlays/gcp/         도쿄 (GKE, asia-northeast1)
+apps/review-service/    검토 서비스(Review API·워커). AWS EKS platform 네임스페이스 전용
 argocd/                 클러스터별 Argo CD Application
   install/              Argo CD · Argo Rollouts 설치 순서와 버전
 ```
