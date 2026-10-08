@@ -1,0 +1,53 @@
+# 검토 워커. Kafka review.requested·review.resumed 를 받아 검토 그래프를 돌린다. HTTP 포트는 없다.
+# 체크포인트를 업무 DB 에 두므로 재시작해도 사람 확인·CI 대기 중인 검토가 이어진다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-worker
+  labels:
+    app: review-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # 컨슈머 그룹 재조정 중 같은 메시지를 두 워커가 잡지 않게 한 대씩
+  selector:
+    matchLabels:
+      app: review-worker
+  template:
+    metadata:
+      labels:
+        app: review-worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/crystal-sbhackathon2026/review-worker
+          envFrom:
+            - configMapRef:
+                name: review-service
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: {name: review-db-credentials, key: username}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: review-db-credentials, key: password}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: ANTHROPIC_API_KEY, optional: true}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: GITHUB_TOKEN, optional: true}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 768Mi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
