@@ -9,9 +9,12 @@ apps/sample-app/
   overlays/aws/         서울 (EKS, ap-northeast-2)
   overlays/gcp/         도쿄 (GKE, asia-northeast1)
 argocd/                 클러스터별 Argo CD Application
+  install/              Argo CD · Argo Rollouts 설치 순서와 버전
 ```
 
 렌더링 확인: `kubectl kustomize apps/sample-app/overlays/aws`
+
+설치 순서와 버전은 [argocd/install/README.md](argocd/install/README.md)를 따릅니다.
 
 ## 로컬(부산) 환경 실행
 ```bash
