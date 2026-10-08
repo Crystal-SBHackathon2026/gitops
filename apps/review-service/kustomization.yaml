@@ -10,6 +10,7 @@ resources:
   # targetgroupbinding.yaml — 플랫폼 ALB 연결. EKS 6단계(찬건님)와 같이 적용한 뒤 여기에 추가한다
 images:
   - name: ghcr.io/crystal-sbhackathon2026/review-api
-    newTag: latest  # review-service main 첫 빌드 뒤 커밋 SHA 로 바꾼다
+    # review-service CI(update-gitops)가 main 커밋 SHA 로 자동 갱신한다
+    newTag: latest
   - name: ghcr.io/crystal-sbhackathon2026/review-worker
     newTag: latest
