@@ -10,7 +10,7 @@ data:
   DB_PORT: "5432"
   DB_NAME: oneaction_review
   DB_SSLMODE: require  # RDS 파라미터 그룹이 rds.force_ssl=1
-  # MSK apply 뒤 Terraform infra/msk output bootstrap_brokers 값으로 바꾼다 (PLAINTEXT, 9092)
-  KAFKA_BOOTSTRAP: "REPLACE_WITH_MSK_BOOTSTRAP_BROKERS"
+  # Terraform infra/msk output bootstrap_brokers (PLAINTEXT, 9092). Private EKS 서브넷에서만 열려 있다
+  KAFKA_BOOTSTRAP: "b-1.oneactionreview.lf4qfu.c4.kafka.ap-northeast-2.amazonaws.com:9092,b-2.oneactionreview.lf4qfu.c4.kafka.ap-northeast-2.amazonaws.com:9092"
   REVIEW_LLM_MODEL: claude-sonnet-5-5
   GITHUB_CI_APP_SLUG: github-actions
