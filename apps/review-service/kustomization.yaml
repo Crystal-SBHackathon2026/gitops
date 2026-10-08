@@ -7,6 +7,7 @@ resources:
   - configmap.yaml
   - api.yaml
   - worker.yaml
+  - externalsecret.yaml  # review-service-secrets (ANTHROPIC_API_KEY·GITHUB_TOKEN·웹훅 비밀값)
   # targetgroupbinding.yaml — 플랫폼 ALB 연결. EKS 6단계(찬건님)와 같이 적용한 뒤 여기에 추가한다
 images:
   - name: ghcr.io/crystal-sbhackathon2026/review-api
