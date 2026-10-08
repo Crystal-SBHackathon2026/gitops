@@ -1,6 +1,6 @@
 # 비밀이 아닌 접속 정보. 비밀 값은 Secret 으로만 넣는다.
 #  - review-db-credentials: DB username·password (인프라 ESO 가 RDS Secret 에서 동기화)
-#  - review-service-secrets: ANTHROPIC_API_KEY·GITHUB_TOKEN·GITHUB_WEBHOOK_SECRET (ExternalSecret 준비 전까지 없을 수 있다)
+#  - review-service-secrets: ANTHROPIC_API_KEY·GITHUB_TOKEN·GITHUB_WEBHOOK_SECRET·ARGOCD_WEBHOOK_TOKEN (externalsecret.yaml)
 apiVersion: v1
 kind: ConfigMap
 metadata:
