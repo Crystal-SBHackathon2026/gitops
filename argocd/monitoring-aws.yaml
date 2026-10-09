@@ -1,0 +1,152 @@
+# Argo CD Application: 모니터링 묶음(Prometheus · Grafana · kube-state-metrics · node-exporter)
+#
+# 차트 버전을 고정한다. latest 를 쓰면 환경마다 다른 게 올라간다 (Argo CD v3.5.4 ·
+# Argo Rollouts v1.10.0 과 같은 원칙).
+#   chart 91.9.0  → prometheus-operator v0.94.1  (2026-10-02)
+#   더 새 버전(92.2.0)이 있지만 하루 전에 나와서, 같은 운영자 버전이면서 묵은 쪽을 골랐다.
+#
+# 설치 전에 Grafana 관리자 비밀번호 Secret 이 있어야 한다 — argocd/monitoring/README.md 참고.
+# 값은 git 에 넣지 않는다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-aws
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 91.9.0
+    helm:
+      releaseName: monitoring
+      values: |
+        # Alertmanager 는 쓰지 않는다. 노드 t3.medium 3대라 자리를 아낀다.
+        alertmanager:
+          enabled: false
+
+        prometheus:
+          prometheusSpec:
+            scrapeInterval: 30s
+            evaluationInterval: 30s
+            # 7일 + 용량 상한. 둘 중 먼저 걸리는 쪽으로 지워진다.
+            # 타임라인 대시보드는 Prometheus 가 아니라 업무 DB 를 직접 읽으므로 보존 기간과 무관하다
+            # (김혜연 확인). 그래서 지표만 보면 되는 길이로 잡았다.
+            retention: 7d
+            retentionSize: 8GB
+            # 차트가 만든 라벨만 보는 기본값을 끈다. 다른 네임스페이스에서 만든
+            # ServiceMonitor(검토 서비스 등)도 집어가게 한다.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false
+            resources:
+              requests: {cpu: 200m, memory: 1Gi}
+              limits: {memory: 2Gi}
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: oneaction-monitoring-gp3
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 10Gi
+
+        grafana:
+          enabled: true
+          # 비밀번호를 git 에 넣지 않는다. 아래 Secret 을 미리 만들어 둔다.
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          persistence:
+            enabled: true
+            storageClassName: oneaction-monitoring-gp3
+            size: 2Gi
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          # 폴더를 나눈다 — apps/(이성진) · platform/(김혜연)
+          sidecar:
+            dashboards:
+              enabled: true
+              searchNamespace: ALL
+              folderAnnotation: grafana_folder
+              provider:
+                foldersFromFilesStructure: true
+            datasources:
+              enabled: true
+              searchNamespace: ALL
+          # UI 용 로드밸런서는 만들지 않는다. port-forward 로 본다.
+          service:
+            type: ClusterIP
+
+        # 관리형 컨트롤 플레인이라 긁을 수 없는 것들을 끈다. 켜 두면 계속 빨갛게 뜬다.
+        kubeApiServer:
+          enabled: true
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+
+        kubeStateMetrics:
+          enabled: true
+        nodeExporter:
+          enabled: true
+        prometheus-node-exporter:
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {memory: 64Mi}
+
+        # Argo CD · Argo Rollouts 지표를 긁는다. 둘 다 /metrics 를 이미 열어둔 서비스가 있다.
+        extraManifests:
+          - apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata:
+              name: argocd
+              namespace: monitoring
+            spec:
+              namespaceSelector:
+                matchNames: [argocd]
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - argocd-metrics
+                      - argocd-server-metrics
+                      - argocd-repo-server
+                      - argocd-applicationset-controller
+              endpoints:
+                - port: metrics
+                  interval: 30s
+          - apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata:
+              name: argo-rollouts
+              namespace: monitoring
+            spec:
+              namespaceSelector:
+                matchNames: [argo-rollouts]
+              selector:
+                matchLabels:
+                  # 서비스 이름이 argo-rollouts-metrics 다. argo-rollouts 로 쓰면 아무것도 안 붙는다
+                  app.kubernetes.io/name: argo-rollouts-metrics
+              endpoints:
+                - port: metrics
+                  interval: 30s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CRD 가 커서 kubectl 기본 방식으로는 annotation 크기 제한에 걸린다.
+      - ServerSideApply=true
