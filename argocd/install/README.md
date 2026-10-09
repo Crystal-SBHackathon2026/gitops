@@ -55,6 +55,21 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.pas
 
 초기 비밀번호는 로그인 후 바꾸고, 바꾼 뒤에는 `argocd-initial-admin-secret`을 삭제합니다. 비밀번호는 git·Slack·문서에 남기지 않습니다.
 
+## git 을 다시 읽는 주기
+
+기본 180초다. gitops 에 Argo CD 웹훅을 걸 수 없어서(`argocd-server` 가 ClusterIP, Ingress 없음) 폴링이 유일한 경로다. 실측하니 커밋에서 배포까지 71초~3분 걸려 30초로 줄였다.
+
+```bash
+kubectl -n argocd patch cm argocd-cm --type merge   --patch-file argocd/install/reconciliation-timeout.patch.yaml
+kubectl -n argocd rollout restart statefulset/argocd-application-controller
+```
+
+`argocd-cm` 에는 설치가 넣은 키가 9개 더 있다. **`apply` 로 쓰면 그것들이 지워지므로 반드시 `patch` 를 쓴다.** 설정은 컨트롤러를 재시작해야 읽는다.
+
+## 배포 결과를 검토 서비스로 보내기
+
+`argocd/notifications/` 를 참고한다. 배포 성공·실패를 Review API 로 보내 업무 DB 에 baseline 을 쌓는다. 토큰을 넣는 방법과 ESO 제약도 그 문서에 있다.
+
 ## AWS(EKS) 환경에서 주의할 점
 
 - EKS API는 허용된 IP에서만 접속됩니다. 설치 명령을 실행할 PC의 IP가 allowlist에 있어야 합니다.

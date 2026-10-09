@@ -6,6 +6,14 @@ kind: Application
 metadata:
   name: sample-app-aws
   namespace: argocd
+  annotations:
+    # 배포 성공·실패를 검토 서비스로 보낸다 (argocd/notifications/).
+    # app 은 deploy.yaml 의 metadata.name, env 는 target.env 와 같아야 한다.
+    # 검토 서비스가 이 값으로 업무 DB 의 baseline 을 찾는다.
+    oneaction.crystal/app: sample-app
+    oneaction.crystal/env: aws
+    notifications.argoproj.io/subscribe.on-deployed.review-api: ""
+    notifications.argoproj.io/subscribe.on-health-degraded.review-api: ""
 spec:
   project: default
   source:

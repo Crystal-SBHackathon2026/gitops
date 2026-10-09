@@ -1,0 +1,19 @@
+# Argo CD 가 git 을 다시 읽는 주기. 기본 180초를 30초로 줄인다.
+#
+# ⚠️ kubectl apply 로 쓰지 않는다. argocd-cm 에는 설치가 넣은 키가 9개 더 있어서
+#    apply 하면 그것들이 지워진다. 반드시 patch 로 이 키만 더한다.
+#
+#    kubectl -n argocd patch cm argocd-cm --type merge \
+#      --patch-file argocd/install/reconciliation-timeout.patch.yaml
+#
+# 왜 줄이나: gitops 에 Argo CD 웹훅을 걸 수 없다(argocd-server 가 ClusterIP, Ingress 없음).
+# 폴링이 유일한 경로다. 실측하니 커밋에서 배포까지 71초~3분 걸렸고, 데모에서
+# "코드를 고치면 자동 배포된다"를 보여줄 때 가장 길게 느껴지는 구간이었다.
+#
+# 부작용: 주기를 줄이면 commit_overlay 와 CI 의 두 gitops 커밋(간격 약 44초)이 따로
+# 잡힐 확률이 올라가 알림이 두 번 갈 수 있다. 같은 (app, env, 이미지 태그) 알림은
+# Review API 가 한 번만 기록하므로 괜찮다 (2026-10-09 김혜연 합의).
+#
+# Application 이 2개뿐이라 API 서버 부하는 미미하다.
+data:
+  timeout.reconciliation: 30s
