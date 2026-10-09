@@ -1,0 +1,92 @@
+# 검토 근거 문서 벡터 검색(Qdrant). 워커가 QDRANT_URL 로 사례·가이드 의미 검색을 덧붙인다.
+# 디스크 없이(emptyDir) 띄운다 — 파드가 다시 뜰 때마다 indexer 컨테이너가 워커 이미지 안의 knowledge/ 로
+# 다시 색인한다(170청크 내외, 1분 안쪽). 워커와 같은 이미지라 워커 코드와 같은 버전의 문서가 들어간다.
+# 색인 전·Qdrant 장애 중에도 워커는 규칙 문서 파일 검색만으로 검토를 계속한다(review_ai.retrieval.runtime).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+  labels:
+    app: qdrant
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v1.19.1-unprivileged  # qdrant-client 1.19 와 같은 마이너
+          ports:
+            - name: http
+              containerPort: 6333
+          env:
+            - name: QDRANT__TELEMETRY_DISABLED
+              value: "true"
+          # 색인이 끝나 컬렉션이 생겨야 Ready — 그 전에는 Service 로 트래픽을 받지 않는다
+          readinessProbe:
+            httpGet: {path: /collections/review-knowledge, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:  # 실측 143Mi(170청크). 문서·사례가 늘어날 여유로 상한 1Gi
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: storage, mountPath: /qdrant/storage}
+            - {name: snapshots, mountPath: /qdrant/snapshots}
+            - {name: tmp, mountPath: /tmp}
+        - name: indexer
+          # 이미지 태그는 kustomization images 의 review-worker 를 따라간다 (review-service CI 가 갱신)
+          image: ghcr.io/crystal-sbhackathon2026/review-worker
+          command: ["sh", "-c"]
+          args:
+            - python -m review_ai.retrieval.indexer --qdrant-url http://localhost:6333 --wait 120 && exec sleep infinity
+          # 색인할 때만 임베딩 모델을 올리고 끝나면 sleep. 실측 최고 약 780MB(16개씩 임베딩) — 512Mi 는 OOM.
+          # 평소엔 거의 안 쓰므로 요청은 작게, 상한은 실측의 2배
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1536Mi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: indexer-tmp, mountPath: /tmp}
+      volumes:
+        - name: storage
+          emptyDir: {}
+        - name: snapshots
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: indexer-tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  labels:
+    app: qdrant
+spec:
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      port: 6333
+      targetPort: http
