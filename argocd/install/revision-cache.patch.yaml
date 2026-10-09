@@ -1,0 +1,52 @@
+# argocd-repo-server — 브랜치 HEAD 조회 결과 캐시 수명
+#
+# 🔴 왜 이게 필요한가
+#
+# argocd-cm 의 timeout.reconciliation 30s 를 넣고도 반영이 3분 넘게 걸렸다 (10/9 19:15 실측).
+# 재조회 루프는 30초마다 제대로 돌고 있었다 (status.reconciledAt 가 30초마다 갱신된다).
+# 느린 건 다른 곳이었다.
+#
+#   timeout.reconciliation  = "얼마나 자주 확인하나"        → 30초
+#   --revision-cache-expiration = "main 의 HEAD 가 무엇인지 기억해 두는 시간" → 기본 3분
+#
+# 재조회 루프가 30초마다 돌아도, repo-server 는 "main = 064d6c6" 을 3분 동안 기억하고
+# 있어서 그 사이에 올라온 커밋을 아예 못 본다. 그래서 실제 감지 시간은
+# 0~3분 사이에 흩어지고 평균 1분 30초가 된다 — 전에 측정한 "Argo 반영 1:30" 이 이것이다.
+#
+# 측정 (10/9):
+#   gitops 커밋 19:15:15 → Argo CD 리비전 갱신 19:18:30   = 3분 15초
+#
+# 10초로 줄인다. 데모에서 3분을 그냥 기다리는 구간이 사라진다.
+#
+# 비용: ls-remote 호출이 늘어난다. Application 이 4개뿐이고 30초마다 한 번이라
+# GitHub rate limit 과는 거리가 멀다.
+#
+# 원래는 깃허브 웹훅으로 미는 쪽이 정석이지만, argocd-server 가 공개 주소로
+# 열려 있지 않아서(port-forward 로만 본다) 지금은 쓸 수 없다.
+#
+# ⚠️ apply 하지 말고 patch 로 넣을 것. 이 파일에는 Deployment 의 일부만 있다.
+#
+#   kubectl -n argocd patch deployment argocd-repo-server --patch-file argocd/install/revision-cache.patch.yaml
+#
+# 확인 — repo-server 가 다시 뜨고 나서:
+#   kubectl -n argocd get deploy argocd-repo-server \
+#     -o jsonpath='{.spec.template.spec.containers[0].args}'
+#
+# 기본값을 다시 보려면:
+#   kubectl -n argocd exec deploy/argocd-repo-server -- \
+#     argocd-repo-server --help | grep revision-cache
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+        - name: argocd-repo-server
+          # 설치본에는 args 가 없고 command 만 있다. 그래서 여기 넣는 값이 그대로 플래그가 된다.
+          # argocd-cmd-params-cm 의 키로 넣는 방법도 있지만, 설치본 Deployment 에
+          # ARGOCD_REVISION_CACHE_EXPIRATION 환경변수가 연결돼 있지 않아 조용히 무시된다.
+          args:
+            - --revision-cache-expiration=10s
