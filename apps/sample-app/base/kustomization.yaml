@@ -3,6 +3,8 @@ kind: Kustomization
 resources:
   - rollout.yaml
   - service.yaml
+  # 카나리 단계에서 Rollout 이 참조한다. 환경마다 있어야 해서 base 에 둔다.
+  - analysistemplate.yaml
 images:
   - name: ghcr.io/crystal-sbhackathon2026/sample-app
     # CI(update-gitops)가 커밋 SHA로 자동 갱신한다.
