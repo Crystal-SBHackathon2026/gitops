@@ -1,5 +1,10 @@
 # gitops
 
+![전체 흐름에서 gitops 의 자리](docs/architecture.png)
+
+> 위 그림 ③ 의 **"gitops 레포에 커밋"** 과 **Argo CD** 가 이 레포입니다. 검토를 통과한 명세와 CI 가 빌드한 이미지 태그가 여기로 모이고, Argo CD 가 각 환경에 배포합니다.
+> 그림 원본은 [docs/architecture.excalidraw](docs/architecture.excalidraw) (Excalidraw).
+
 Argo CD가 바라보는 배포 설정 레포입니다. 앱 레포의 CI가 이미지 태그를 갱신하면 Argo CD가 각 클러스터에 자동으로 동기화합니다. **사람이 이 레포를 직접 고치는 일은 거의 없습니다.**
 
 ```
