@@ -38,9 +38,11 @@ spec:
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: GITHUB_TOKEN, optional: true}
-          resources:  # 의미 검색용 임베딩 모델(fastembed 다국어 MiniLM)을 메모리에 올린다
-            requests: {cpu: 100m, memory: 512Mi}
-            limits: {cpu: 500m, memory: 1536Mi}
+          # 의미 검색용 임베딩 모델(fastembed 다국어 MiniLM)을 메모리에 올린다. 실측: 모델 없이 106Mi →
+          # 모델 + 검색 약 690MB(VmHWM). 검토 그래프·judge 까지 약 800MB 로 보고 요청 1Gi, 상한은 그 2배
+          resources:
+            requests: {cpu: 100m, memory: 1Gi}
+            limits: {cpu: 500m, memory: 2Gi}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false

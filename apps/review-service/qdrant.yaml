@@ -37,9 +37,9 @@ spec:
             httpGet: {path: /livez, port: http}
             initialDelaySeconds: 10
             periodSeconds: 10
-          resources:
-            requests: {cpu: 50m, memory: 128Mi}
-            limits: {cpu: 500m, memory: 512Mi}
+          resources:  # 실측 143Mi(170청크). 문서·사례가 늘어날 여유로 상한 1Gi
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 1Gi}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -55,9 +55,11 @@ spec:
           command: ["sh", "-c"]
           args:
             - python -m review_ai.retrieval.indexer --qdrant-url http://localhost:6333 --wait 120 && exec sleep infinity
+          # 색인할 때만 임베딩 모델을 올리고 끝나면 sleep. 실측 최고 약 780MB(16개씩 임베딩) — 512Mi 는 OOM.
+          # 평소엔 거의 안 쓰므로 요청은 작게, 상한은 실측의 2배
           resources:
-            requests: {cpu: 50m, memory: 128Mi}
-            limits: {cpu: "1", memory: 1Gi}  # 색인할 때만 임베딩 모델을 올린다. 끝나면 sleep
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1536Mi}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
