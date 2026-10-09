@@ -1,8 +1,13 @@
-# Argo CD Application: GitOps 레포의 gcp overlay를 도쿄 GKE 클러스터에 동기화한다.
+# Argo CD Application: GitOps 레포의 gcp overlay 를 도쿄 GKE 클러스터에 배포한다.
 #
-# ⚠️ destination.server 를 kubernetes.default.svc 로 두면 안 된다 (sample-app-local.yaml 참고).
-# 클러스터를 Argo CD 에 등록한 뒤 아래 값을 실제 주소로 바꾼다.
-# 등록 전에는 이 파일을 적용하지 않는다.
+# 🔴 아직 적용하지 않는다. GKE 클러스터가 없다.
+#
+# GKE 는 중앙 EKS 의 Argo CD 에서 관리할 예정이다 (2026-10-09 합의). EKS 에서 GKE API 로
+# 접근·인증이 되는 것을 확인한 뒤 등록한다. 등록 뒤 이 파일을 그대로 적용하면 된다.
+#
+# destination 은 name 으로 쓴다. 등록 전에 실수로 적용해도 "cluster not found" 로 명확히
+# 실패하고, kubernetes.default.svc 처럼 EKS 자신에 배포되는 사고가 나지 않는다
+# (sample-app-local.yaml 주석 참고).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -15,7 +20,7 @@ spec:
     targetRevision: main
     path: apps/sample-app/overlays/gcp
   destination:
-    server: GCP_GKE_API_SERVER
+    name: tokyo-gke
     namespace: sample-app
   syncPolicy:
     automated:
