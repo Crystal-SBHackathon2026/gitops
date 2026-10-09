@@ -5,7 +5,6 @@ kind: Kustomization
 namespace: sample-app
 resources:
 - ../../base
-- ingress.yaml
 patches:
 - target:
     kind: Rollout
@@ -13,18 +12,13 @@ patches:
   patch: |-
     - op: replace
       path: /spec/replicas
-      value: 2
+      value: 1
     - op: add
       path: /spec/template/spec/containers/-
       value:
         name: sample-app
         ports:
         - containerPort: 8080
-        env:
-        - name: DEPLOY_ENV
-          value: aws
-        - name: DEPLOY_REGION
-          value: ap-northeast-2
         readinessProbe:
           httpGet:
             path: /healthz
