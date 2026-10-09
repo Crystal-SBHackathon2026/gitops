@@ -116,6 +116,8 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.pas
 
 기본 180초다. gitops 에 Argo CD 웹훅을 걸 수 없어서(`argocd-server` 가 ClusterIP, Ingress 없음) 폴링이 유일한 경로다. 실측하니 커밋에서 배포까지 71초~3분 걸려 30초로 줄였다.
 
+**주기만 줄이면 안 된다.** 아래 세 가지를 다 해야 30초가 된다 — `timeout.reconciliation`, `jitter` 0, 그리고 repo-server 의 `--revision-cache-expiration`.
+
 ```bash
 kubectl -n argocd patch cm argocd-cm --type merge   --patch-file argocd/install/reconciliation-timeout.patch.yaml
 kubectl -n argocd rollout restart statefulset/argocd-application-controller
@@ -129,6 +131,47 @@ kubectl -n argocd rollout restart statefulset/argocd-application-controller
 kubectl -n argocd logs argocd-application-controller-0 | grep appResyncPeriod
 # appResyncPeriod=30s, appHardResyncPeriod=0s, appResyncJitter=0s
 ```
+
+### 🔴 주기를 30초로 줄여도 반영이 3분 걸린다 — 고쳐야 할 곳이 하나 더 있다
+
+위 두 가지를 다 하고도 10/9 19:15 에 재보니 **3분 15초** 걸렸다. 재조회 루프는 멀쩡했다
+(`status.reconciledAt` 이 30초마다 갱신된다). 느린 곳은 `argocd-repo-server` 였다.
+
+| 설정 | 뜻 | 기본값 |
+| --- | --- | --- |
+| `timeout.reconciliation` (`argocd-cm`) | 얼마나 자주 확인하나 | 180초 → **30초로 줄였다** |
+| `--revision-cache-expiration` (`argocd-repo-server`) | `main` 의 HEAD 가 무엇인지 기억해 두는 시간 | **3분** |
+
+재조회 루프가 30초마다 돌아도 repo-server 가 "`main` = 064d6c6" 을 3분 동안 기억하고
+있으면 그 사이 올라온 커밋을 **아예 못 본다.** 그래서 실제 감지 시간이 0~3분 사이에
+흩어지고 평균 1분 30초가 된다 — 전에 측정한 "Argo 반영 1:30" 이 이것이었다.
+
+```bash
+kubectl -n argocd patch deployment argocd-repo-server   --patch-file argocd/install/revision-cache.patch.yaml
+kubectl -n argocd rollout status deploy/argocd-repo-server
+```
+
+확인:
+
+```bash
+kubectl -n argocd get deploy argocd-repo-server   -o jsonpath='{.spec.template.spec.containers[0].args}'
+# ["--revision-cache-expiration=10s"]
+```
+
+`argocd-cmd-params-cm` 에 키로 넣는 방법도 있지만, 설치본 Deployment 에
+`ARGOCD_REVISION_CACHE_EXPIRATION` 환경변수가 연결돼 있지 않아 **조용히 무시된다.**
+연결된 환경변수 목록은 이렇게 본다.
+
+```bash
+kubectl -n argocd get deploy argocd-repo-server   -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}{"
+"}{end}' | grep -i cache
+# ARGOCD_DEFAULT_CACHE_EXPIRATION
+# ARGOCD_REPO_CACHE_EXPIRATION
+# ARGOCD_REVISION_CACHE_LOCK_TIMEOUT      ← EXPIRATION 이 없다
+```
+
+원래는 깃허브 웹훅으로 미는 쪽이 정석이다. `argocd-server` 가 공개 주소로 열리면
+캐시 수명과 무관하게 즉시 반영된다. 지금은 ClusterIP 라 쓸 수 없다.
 
 ## 배포 결과를 검토 서비스로 보내기
 
