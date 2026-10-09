@@ -25,6 +25,8 @@ patches:
           value: aws
         - name: DEPLOY_REGION
           value: ap-northeast-2
+        - name: FAIL_RATE
+          value: '0.3'
         readinessProbe:
           httpGet:
             path: /healthz
