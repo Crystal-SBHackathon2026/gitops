@@ -10,6 +10,7 @@ resources:
   - qdrant.yaml  # 근거 문서 벡터 검색. 디스크 없이 뜨고 indexer 컨테이너가 다시 색인한다
   - externalsecret.yaml  # review-service-secrets (ANTHROPIC_API_KEY·GITHUB_TOKEN·웹훅 비밀값)
   - targetgroupbinding.yaml  # 플랫폼 ALB(oneaction-alb) → platform-tg → Service platform:8080
+  - monitoring  # ServiceMonitor·Grafana 대시보드·데이터소스 (monitoring/README.md)
 images:
   - name: ghcr.io/crystal-sbhackathon2026/review-api
     # review-service CI(update-gitops)가 main 커밋 SHA 로 자동 갱신한다

@@ -1,0 +1,43 @@
+# Grafana 데이터소스 — 업무 DB(RDS) 읽기 전용 사용자 grafana_ro. Grafana sidecar 가 grafana_datasource: "1" 라벨 Secret 을 읽는다.
+# 비밀번호는 Secrets Manager oneaction/review-service 의 GRAFANA_DB_PASSWORD 키. 그 키를 넣기 전에 적용하면 동기화가 실패한다.
+# review-service-secrets(externalsecret.yaml) 와 따로 둔다 — 그 ExternalSecret 은 키가 하나라도 없으면 전체가 실패한다.
+# ESO 는 platform 네임스페이스만 본다. 설치된 Grafana sidecar 는 NAMESPACE=ALL 이라 platform 의 Secret 도 읽는다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: review-db-grafana-datasource
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: review-db
+    kind: SecretStore
+  target:
+    name: review-db-grafana-datasource
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      metadata:
+        labels:
+          grafana_datasource: "1"
+      data:
+        review-db.yaml: |
+          apiVersion: 1
+          datasources:
+            - name: review-db
+              uid: review-db  # 대시보드가 이 uid 로 찾는다
+              type: grafana-postgresql-datasource
+              url: oneaction-review-db.cfwu8m0qiqk1.ap-northeast-2.rds.amazonaws.com:5432
+              user: grafana_ro
+              editable: false
+              jsonData:
+                database: oneaction_review
+                sslmode: require  # rds.force_ssl=1
+                postgresVersion: 1600
+                maxOpenConns: 5
+              secureJsonData:
+                password: {{ .password | toJson }}  # JSON 문자열은 YAML 로도 안전하다
+  data:
+    - secretKey: password
+      remoteRef:
+        key: oneaction/review-service
+        property: GRAFANA_DB_PASSWORD

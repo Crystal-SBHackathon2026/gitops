@@ -1,4 +1,4 @@
-# 검토 워커. Kafka review.requested·review.resumed 를 받아 검토 그래프를 돌린다. HTTP 포트는 없다.
+# 검토 워커. Kafka review.requested·review.resumed 를 받아 검토 그래프를 돌린다. API 포트는 없고 지표 포트(9100)만 연다.
 # 체크포인트를 업무 DB 에 두므로 재시작해도 사람 확인·CI 대기 중인 검토가 이어진다.
 apiVersion: apps/v1
 kind: Deployment
@@ -22,6 +22,8 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/crystal-sbhackathon2026/review-worker
+          ports:
+            - {name: metrics, containerPort: 9100}  # prometheus_client /metrics (METRICS_PORT)
           envFrom:
             - configMapRef:
                 name: review-service
@@ -53,3 +55,17 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+---
+# 워커 지표 — ServiceMonitor(monitoring/servicemonitors.yaml)가 이 Service 의 metrics 포트를 긁는다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-worker-metrics
+  labels:
+    app: review-worker
+spec:
+  type: ClusterIP
+  selector:
+    app: review-worker
+  ports:
+    - {name: metrics, port: 9100, targetPort: metrics}
