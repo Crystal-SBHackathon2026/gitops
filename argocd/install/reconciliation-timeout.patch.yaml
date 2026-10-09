@@ -15,5 +15,14 @@
 # Review API 가 한 번만 기록하므로 괜찮다 (2026-10-09 김혜연 합의).
 #
 # Application 이 2개뿐이라 API 서버 부하는 미미하다.
+#
+# ⚠️ jitter 를 0 으로 두지 않으면 주기가 30초가 아니다.
+# Argo CD 는 재조회 주기에 0~jitter 사이의 무작위 시간을 더한다. 기본값이 1분이라
+# timeout.reconciliation 만 30s 로 두면 실제 주기가 30~90초가 된다.
+#   컨트롤러 시작 로그: appResyncPeriod=30s, appHardResyncPeriod=0s, appResyncJitter=1m0s
+#   실측: gitops 커밋에서 배포 반영까지 87초
+# 지터는 Application 이 많을 때 API 서버에 요청이 몰리지 않게 분산하는 장치다.
+# 우리는 2개뿐이라 의미가 없고 지연만 늘린다.
 data:
   timeout.reconciliation: 30s
+  timeout.reconciliation.jitter: 0s

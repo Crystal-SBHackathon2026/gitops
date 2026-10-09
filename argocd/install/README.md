@@ -66,6 +66,13 @@ kubectl -n argocd rollout restart statefulset/argocd-application-controller
 
 `argocd-cm` 에는 설치가 넣은 키가 9개 더 있다. **`apply` 로 쓰면 그것들이 지워지므로 반드시 `patch` 를 쓴다.** 설정은 컨트롤러를 재시작해야 읽는다.
 
+**`jitter` 를 0 으로 두지 않으면 주기가 30초가 아니다.** Argo CD 는 재조회 주기에 0~jitter 사이의 무작위 시간을 더하고 기본값이 1분이다. `timeout.reconciliation` 만 바꾸면 실제 주기가 30~90초가 된다(실측 87초). 시작 로그로 확인할 수 있다.
+
+```bash
+kubectl -n argocd logs argocd-application-controller-0 | grep appResyncPeriod
+# appResyncPeriod=30s, appHardResyncPeriod=0s, appResyncJitter=0s
+```
+
 ## 배포 결과를 검토 서비스로 보내기
 
 `argocd/notifications/` 를 참고한다. 배포 성공·실패를 Review API 로 보내 업무 DB 에 baseline 을 쌓는다. 토큰을 넣는 방법과 ESO 제약도 그 문서에 있다.
