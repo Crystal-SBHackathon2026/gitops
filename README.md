@@ -37,14 +37,43 @@ argocd/                      클러스터별 Argo CD Application
 ### 카나리 — 절반만 먼저 내보낸다
 
 ```
-새 이미지 → 50% (복제본이 2개면 새 버전 1개 + 옛 버전 1개)
-         → 60초 동안 /api/info 응답 확인 (10초마다 6번)
-         → 멀쩡하면 100%, 계속 틀리면 중단하고 되돌림
+새 이미지 → 50% (복제본이 3개면 새 버전 2개 + 옛 버전 1개)
+         → 60초 동안 두 가지 확인 (10초마다 6번)
+              ① 앱이 제대로 응답하는지      (api-ok)
+              ② 카나리 파드의 5xx 비율      (error-rate)
+         → 둘 다 멀쩡하면 100%, 하나라도 틀리면 중단하고 되돌림
 ```
 
 단계는 `apps/sample-app/base/rollout.yaml`, 확인 기준은 `base/analysistemplate.yaml` 에 있습니다. 명세의 `rollout.strategy` 가 `canary` 면 이 설정을 그대로 쓰고, `bluegreen` 이면 렌더러가 전략을 통째로 바꿉니다.
 
-Prometheus가 아직 없어서 `web` 프로바이더로 **앱 응답을 직접** 봅니다. 그래서 **일부 요청만 실패하는 부분 에러율은 잡지 못합니다**(이슈 #24). Prometheus가 올라오면 메트릭을 추가합니다.
+지표가 둘인 이유는 각자 못 보는 게 있기 때문입니다.
+
+| | 잡는 것 | 못 잡는 것 |
+| --- | --- | --- |
+| `api-ok` (앱을 직접 부름) | 응답이 **계속** 틀린 경우 — 잘못된 이미지, 설정 오류 | 일부 요청만 실패하는 경우. Service 가 카나리·안정 파드를 함께 가리켜 요청이 번갈아 가므로 연속 오류가 잘 안 생긴다 |
+| `error-rate` (Prometheus) | **부분 에러율** — "새 버전이 10% 요청만 500 을 준다" | 트래픽이 없으면 아무것도 못 본다 |
+
+`error-rate` 는 `rollouts_pod_template_hash` 로 **카나리 파드만** 골라서 잽니다. 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있어서, 이 라벨이 없으면 지표가 섞여 "새 버전만 에러가 난다" 가 희석됩니다.
+
+#### 🔴 `error-rate` 는 트래픽이 있어야 의미가 있습니다
+
+`/healthz` 를 일부러 뺐습니다. readiness·liveness 가 5초·10초마다 때리므로 섞으면 사용자 요청의 실패가 묻힙니다. 실측하니 전체 0.87 req/s 가 전부 헬스체크였고 사용자 요청은 0 req/s 였습니다.
+
+**데모에서 부분 실패를 보여주려면 카나리가 도는 동안 요청을 넣어야 합니다.**
+
+```bash
+# 카나리 60초 동안 초당 몇 번씩 때린다
+ALB=k8s-sampleap-sampleap-88af4f1f82-400100408.ap-northeast-2.elb.amazonaws.com
+end=$((SECONDS+90)); while [ $SECONDS -lt $end ]; do curl -s -o /dev/null "http://$ALB/api/info"; sleep 0.2; done
+```
+
+트래픽이 없을 때는 **배포를 막지 않습니다**(측정값 0 으로 통과). 아무도 안 쓰는 앱의 배포를 세워두는 것보다 낫다고 봤습니다.
+
+#### 로컬에는 Prometheus 가 없습니다
+
+`base` 를 두 환경이 공유하므로 `error-rate` 는 로컬 k3s 에서 매번 `Error` 가 됩니다. 그래서 `consecutiveErrorLimit` 을 `count` 와 같게 둬서 **오류로는 절대 중단되지 않게** 했습니다.
+
+Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 합니다. 그때의 안전망은 `api-ok` 입니다. 환경별로 다르게 하려면 `base` 를 분리해야 하는데, 지금 필요한 변경이 아닙니다.
 
 ### 헬스체크 실패 시 자동 롤백
 
@@ -104,3 +133,5 @@ sed 's|LOCAL_K3S_API_SERVER|https://kubernetes.default.svc|' argocd/sample-app-l
 Windows에서 kubectl 연결이 안 되면: `kubectl config set-cluster k3d-crystal-busan --server=https://127.0.0.1:<포트>`
 
 **카나리 분석이 로컬에서도 돌려면** 그 클러스터에 Argo Rollouts가 설치돼 있어야 합니다. `AnalysisTemplate` 은 `base` 에 있어 overlay를 쓰면 자동으로 따라갑니다.
+
+로컬에는 `monitoring` 네임스페이스가 없어서 `error-rate` 지표가 매번 `Error` 가 됩니다. 중단되지는 않습니다 — 위 "로컬에는 Prometheus 가 없습니다" 참고.
