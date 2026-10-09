@@ -159,11 +159,18 @@ spec:
                   # 다른 대상까지 10초로 내리지는 않는다 (보존 7일 + 8GB 상한이 있다).
                   interval: 10s
                   relabelings:
-                    # 🔴 카나리 분석(#24)에 반드시 필요하다.
-                    # 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있다.
-                    # 이 라벨이 없으면 둘의 지표가 섞여서 "새 버전만 에러가 난다" 를 볼 수 없다.
-                    # AnalysisTemplate 에서 valueFrom.podTemplateHashValue: Latest 로 받아 쓴다.
-                    - sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
+                    # 카나리 파드와 안정 파드를 갈라 보기 위한 라벨.
+                    # 카나리 중에는 둘이 같은 Service 뒤에 함께 있어서, 이 라벨이 없으면
+                    # 지표가 섞여 "새 버전만 에러가 난다" 를 볼 수 없다.
+                    # (Grafana apps/ 대시보드의 '카나리 vs 안정' 패널이 이걸 쓴다)
+                    #
+                    # ⚠️ action: replace 를 반드시 적어야 한다. 생략해도 동작은 같지만
+                    # prometheus-operator 가 서버에서 기본값으로 채워 넣어서,
+                    # Argo CD 가 "내가 보낸 것에 없는 필드가 live 에 있다" 로 보고
+                    # **영구히 OutOfSync** 가 된다. 10/9 에 실제로 그렇게 됐다.
+                    # 영구 OutOfSync 는 진짜 드리프트를 가린다.
+                    - action: replace
+                      sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
                       targetLabel: rollouts_pod_template_hash
           - apiVersion: monitoring.coreos.com/v1
             kind: ServiceMonitor
