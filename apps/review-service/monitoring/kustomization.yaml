@@ -1,0 +1,21 @@
+# 검토 서비스 모니터링 — 상위 apps/review-service/kustomization.yaml 의 resources 에 `- monitoring` 을 더해 켠다.
+# 아직 넣지 않았다: ServiceMonitor CRD 가 없는 클러스터면 Argo CD 동기화가 실패하고, grafana-datasource 는
+# Secrets Manager 에 GRAFANA_DB_PASSWORD 가 있어야 동기화된다. 켜는 순서는 README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - servicemonitors.yaml
+  - grafana-datasource.yaml  # GRAFANA_DB_PASSWORD 를 Secrets Manager 에 넣은 뒤
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: platform  # 설치된 sidecar 의 FOLDER_ANNOTATION=grafana_folder
+configMapGenerator:
+  - name: review-dashboard-platform
+    files:
+      - dashboards/platform-overview.json
+  - name: review-dashboard-commit-timeline
+    files:
+      - dashboards/commit-timeline.json

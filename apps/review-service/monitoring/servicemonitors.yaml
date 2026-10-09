@@ -1,0 +1,34 @@
+# Prometheus Operator ServiceMonitor. 10/09 09:48Z 설치된 kube-prometheus-stack(릴리스 monitoring, 네임스페이스 monitoring)은
+# serviceMonitorSelector·serviceMonitorNamespaceSelector 가 {} 라 라벨과 무관하게 모든 네임스페이스의 ServiceMonitor 를 긁는다.
+# release 라벨은 차트 관례대로 둔다 — 셀렉터를 좁히면 이 값에 맞춘다.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: review-api
+  labels:
+    app: review-api
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: review-api  # Service platform (api.yaml)
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: review-worker
+  labels:
+    app: review-worker
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: review-worker  # Service review-worker-metrics (worker.yaml)
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
