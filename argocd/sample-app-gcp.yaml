@@ -1,5 +1,8 @@
-# Argo CD Application: GitOps 레포의 gcp overlay를 해당 클러스터에 동기화한다.
-# destination.server는 클러스터를 Argo CD에 등록한 뒤 실제 주소로 바꾼다.
+# Argo CD Application: GitOps 레포의 gcp overlay를 도쿄 GKE 클러스터에 동기화한다.
+#
+# ⚠️ destination.server 를 kubernetes.default.svc 로 두면 안 된다 (sample-app-local.yaml 참고).
+# 클러스터를 Argo CD 에 등록한 뒤 아래 값을 실제 주소로 바꾼다.
+# 등록 전에는 이 파일을 적용하지 않는다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
