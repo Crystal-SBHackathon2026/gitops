@@ -31,6 +31,9 @@ spec:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef: {name: review-db-credentials, key: password}
+            - name: ANTHROPIC_API_KEY  # 형식이 깨진 deploy.yaml 복구(intake, review-service#25)가 API 에서 Claude 를 부른다
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: ANTHROPIC_API_KEY, optional: true}
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: GITHUB_TOKEN, optional: true}
