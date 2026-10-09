@@ -46,9 +46,12 @@ spec:
             - name: ARGOCD_WEBHOOK_TOKEN  # /webhooks/argocd 의 Bearer 토큰. 비어 있으면 503 (review-service#43 부터 fail-closed)
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: ARGOCD_WEBHOOK_TOKEN, optional: true}
+          # readiness 는 DB SELECT 1·Kafka 브로커 연결까지 본다(각 2초, review-service#48). 실패하면 엔드포인트·ALB 타깃에서 빠진다.
+          # liveness 는 /healthz 그대로 — DB·Kafka 장애로 파드를 재시작하지 않는다
           readinessProbe:
-            httpGet: {path: /healthz, port: http}
+            httpGet: {path: /readyz, port: http}
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
             httpGet: {path: /healthz, port: http}
             initialDelaySeconds: 10
