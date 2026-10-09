@@ -124,6 +124,37 @@ spec:
               endpoints:
                 - port: metrics
                   interval: 30s
+          # sample-app 의 /metrics. 앱 포트와 같은 포트(8080)로 열려 있다.
+          #
+          # 왜 여기에 두나 — 둘 다 안 되는 자리가 있다.
+          #   apps/sample-app/overlays/aws/  → 렌더러가 다시 만드는 파일이라 지워진다
+          #                                    (APP_VERSION 을 overlay env 로 뒀다가 같은 일을 겪었다)
+          #   apps/sample-app/base/          → 로컬 k3s 에는 ServiceMonitor CRD 가 없어
+          #                                    local Application 이 동기화에 실패한다
+          # 그래서 모니터링 묶음이 직접 들고 있는다. 모니터링은 AWS 에만 있다.
+          - apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata:
+              name: sample-app
+              namespace: monitoring
+            spec:
+              namespaceSelector:
+                matchNames: [sample-app]
+              selector:
+                matchLabels:
+                  app: sample-app
+              endpoints:
+                # Service 의 포트에 이름이 없어서 번호로 가리킨다.
+                - targetPort: 8080
+                  path: /metrics
+                  interval: 30s
+                  relabelings:
+                    # 🔴 카나리 분석(#24)에 반드시 필요하다.
+                    # 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있다.
+                    # 이 라벨이 없으면 둘의 지표가 섞여서 "새 버전만 에러가 난다" 를 볼 수 없다.
+                    # AnalysisTemplate 에서 valueFrom.podTemplateHashValue: Latest 로 받아 쓴다.
+                    - sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
+                      targetLabel: rollouts_pod_template_hash
           - apiVersion: monitoring.coreos.com/v1
             kind: ServiceMonitor
             metadata:

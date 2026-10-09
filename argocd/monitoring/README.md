@@ -86,5 +86,34 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 - 클러스터 기본 — kube-state-metrics, node-exporter, kubelet, API 서버
 - **Argo CD** — `argocd` 네임스페이스의 metrics 서비스 4개 (동기화 상태, 앱 health)
 - **Argo Rollouts** — 카나리 단계·분석 결과
-- `sample-app` `/metrics` (이슈 #32)
+- **`sample-app` `/metrics`** — 요청 수·지연·프로세스 지표 (sample-app [#21](https://github.com/Crystal-SBHackathon2026/sample-app/pull/21), 이슈 #32)
 - 검토 서비스 — 김혜연이 ServiceMonitor 를 만들면 자동으로 붙는다
+
+### sample-app ServiceMonitor 를 왜 여기 뒀나
+
+둘 다 안 되는 자리가 있어서 모니터링 묶음이 직접 들고 있는다.
+
+| 자리 | 왜 안 되나 |
+| --- | --- |
+| `apps/sample-app/overlays/aws/` | 렌더러가 다시 만드는 파일이라 지워진다. `APP_VERSION` 을 overlay env 로 뒀다가 같은 일을 겪었다 |
+| `apps/sample-app/base/` | 로컬 k3s 에는 ServiceMonitor CRD 가 없다. base 에 두면 `sample-app-local` 이 동기화에 실패한다 |
+
+모니터링은 AWS 에만 있으므로 이 자리가 맞다.
+
+**함정 둘.**
+
+- Service 자신에게 라벨이 있어야 한다. ServiceMonitor 의 `selector` 는 **파드 라벨이 아니라 Service 의 라벨**을 본다. `apps/sample-app/base/service.yaml` 에 `labels.app: sample-app` 을 넣었다. 없으면 아무것도 안 붙는데 **오류도 안 난다** (Argo Rollouts 서비스 이름을 `argo-rollouts-metrics` 가 아니라 `argo-rollouts` 로 썼을 때와 같은 종류의 실수다)
+- `rollouts_pod_template_hash` 를 relabeling 으로 남긴다. 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있어서, 이 라벨이 없으면 지표가 섞이고 "새 버전만 에러가 난다" 를 볼 수 없다. **이슈 #24 가 이것 없이는 성립하지 않는다.** AnalysisTemplate 에서 `valueFrom.podTemplateHashValue: Latest` 로 받아 쓴다
+
+붙었는지 확인:
+
+```bash
+kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090
+# http://localhost:9090/targets → serviceMonitor/monitoring/sample-app 가 up
+```
+
+```promql
+# 에러율 — #24 가 쓸 식
+sum(rate(http_requests_total{app="sample-app",env="aws",status=~"5.."}[1m]))
+  / sum(rate(http_requests_total{app="sample-app",env="aws"}[1m]))
+```
