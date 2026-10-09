@@ -1,0 +1,30 @@
+# Argo CD Application: Grafana 대시보드 (apps/ 폴더)
+#
+# 모니터링 묶음(monitoring-aws)과 **따로 둔다.** 그쪽은 소스가 Helm 차트 저장소라
+# gitops 레포를 읽지 않아서, 파일을 고쳐도 머지만으로는 반영되지 않는다
+# (리비전이 91.9.0 이다. 10/9 에 ServiceMonitor 로 한 번 걸렸다).
+#
+# 이 Application 은 gitops 레포의 monitoring/dashboards 를 직접 본다. 그래서
+# 대시보드를 고쳐 머지하면 **Argo CD 가 알아서 반영한다.**
+#
+# ⚠️ 이 파일 자체는 한 번 손으로 넣어야 한다 (app-of-apps 가 없다).
+#   kubectl apply -f argocd/monitoring-dashboards-aws.yaml
+# 그 뒤로는 대시보드 변경이 git 으로만 흐른다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-dashboards-aws
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Crystal-SBHackathon2026/gitops.git
+    targetRevision: main
+    path: monitoring/dashboards
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

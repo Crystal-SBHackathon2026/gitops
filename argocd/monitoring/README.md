@@ -81,6 +81,66 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 | `*SelectorNilUsesHelmValues: false` | | 켜 두면 **이 차트가 만든 ServiceMonitor 만** 본다. 검토 서비스 등 다른 네임스페이스 것도 집어가게 끈다 |
 | Grafana 로드밸런서 | 안 만듦 | Argo CD 와 같다. 필요할 때 `port-forward` |
 
+## Grafana 대시보드
+
+폴더가 나뉘어 있다 — `apps/`(이성진) · `platform/`(김혜연).
+
+| 폴더 | 대시보드 | 어디서 만드나 |
+| --- | --- | --- |
+| `apps/` | **앱 상태 — sample-app** (`apps-sample-app`) | `monitoring/dashboards/` |
+| `platform/` | 플랫폼 현황 · 커밋 타임라인 | 김혜연 (review-service) |
+
+### 왜 모니터링 묶음에 안 넣었나
+
+`monitoring-aws` Application 은 소스가 **Helm 차트 저장소**라 gitops 레포를 읽지 않는다(리비전이 `91.9.0`). 거기 `extraManifests` 로 넣으면 대시보드를 고쳐도 **머지만으로는 반영되지 않고** `kubectl apply` 를 매번 다시 해야 한다. 10/9 에 ServiceMonitor 로 한 번 걸렸다.
+
+그래서 전용 Application 을 따로 뒀다. 이쪽은 gitops 레포를 직접 보므로 **고쳐서 머지하면 Argo CD 가 알아서 반영한다.**
+
+```bash
+# 한 번만 손으로 (app-of-apps 가 없다)
+kubectl apply -f argocd/monitoring-dashboards-aws.yaml
+```
+
+### 🔴 라벨 값이 `"1"` 이어야 한다
+
+있기만 해선 안 된다. sidecar 설정을 실제로 확인한 값:
+
+```
+LABEL             = grafana_dashboard
+LABEL_VALUE       = 1
+NAMESPACE         = ALL
+FOLDER_ANNOTATION = grafana_folder
+```
+
+`kustomization.yaml` 의 `generatorOptions` 에서 라벨과 어노테이션을 붙이고, `disableNameSuffixHash: true` 로 이름 뒤 해시를 끈다. 해시가 붙으면 고칠 때마다 ConfigMap 이 새로 생기고 옛것이 지워지면서 sidecar 가 대시보드를 지웠다 다시 만든다.
+
+### 패널
+
+| 구역 | 패널 |
+| --- | --- |
+| 지금 무엇이 떠 있나 | 파드별 이미지 태그, Argo CD 동기화·상태 |
+| 카나리 | **카나리 파드 vs 안정 파드 5xx 비율**, Rollout 단계와 복제본 |
+| 앱 응답 | 요청률(경로별), 응답 코드별, 처리 시간 p50·p95 |
+| 프로세스 (접힘) | 힙, 이벤트 루프 지연, CPU |
+
+**파드별 이미지 태그**가 "지금 뜬 게 어느 커밋인가" 를 답한다. 지표 라벨에 커밋 SHA 를 넣지 않기 때문에(배포마다 시계열이 새로 생긴다) `kube_pod_container_info` 로 본다.
+
+**카나리 파드 vs 안정 파드**가 이 대시보드의 핵심이다. `rollouts_pod_template_hash` 로 갈라야 "새 버전만 에러가 난다" 가 보이고, 합치면 안정 파드의 정상 응답에 희석된다.
+
+에러가 없을 때 빈 패널이 되지 않게 `or (… * 0)` 으로 0 선을 남긴다. 그냥 나누면 분자에 시계열이 없어 **아무것도 안 그려지고 고장처럼 보인다** (카나리 분석에서 `clamp_min` 이 필요했던 것과 같은 종류다).
+
+### 확인
+
+```bash
+kubectl -n monitoring logs deploy/monitoring-grafana -c grafana-sc-dashboard --tail=20
+# Found a folder override annotation, placing the dashboard-sample-app in: /tmp/dashboards/apps
+
+kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
+# http://localhost:3000 - apps 폴더
+```
+
+비밀번호는 손으로 만든 Secret `monitoring/grafana-admin` 에 있다. git·슬랙 어디에도 값은 없다.
+
 ## 긁는 대상
 
 - 클러스터 기본 — kube-state-metrics, node-exporter, kubelet, API 서버
