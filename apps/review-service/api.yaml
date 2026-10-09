@@ -40,7 +40,10 @@ spec:
             - name: GITHUB_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: GITHUB_WEBHOOK_SECRET, optional: true}
-            - name: ARGOCD_WEBHOOK_TOKEN  # 있으면 /webhooks/argocd 가 Authorization: Bearer 를 확인한다
+            - name: REVIEW_API_TOKEN  # POST /reviews·/decision 인증. 비어 있으면 그 경로는 503 (fail-closed)
+              valueFrom:
+                secretKeyRef: {name: review-service-secrets, key: REVIEW_API_TOKEN, optional: true}
+            - name: ARGOCD_WEBHOOK_TOKEN  # /webhooks/argocd 의 Bearer 토큰. 비어 있으면 503 (review-service#43 부터 fail-closed)
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: ARGOCD_WEBHOOK_TOKEN, optional: true}
           readinessProbe:
