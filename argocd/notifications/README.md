@@ -51,24 +51,47 @@ Application 이름(`sample-app-aws`)을 잘라 쓰지 않는 이유는, 앱 이�
 ## 적용
 
 ```bash
+kubectl apply -f argocd/notifications/secretstore.yaml
+kubectl apply -f argocd/notifications/externalsecret.yaml
 kubectl apply -f argocd/notifications/notifications-cm.yaml
 kubectl apply -f argocd/sample-app-aws.yaml
 ```
 
 컨트롤러는 ConfigMap 변경을 스스로 다시 읽는다. 재시작하지 않아도 된다.
 
-### 토큰 넣기 — 지금은 손으로 넣는다
+### 토큰은 ESO 가 넣는다 (2026-10-09 전환 완료)
 
-ESO 로 넣으려 했지만 **지금은 안 된다.** 외부 시크릿 컨트롤러가 `platform` 네임스페이스에만 걸려 있다.
+`argocd` 네임스페이스 **전용 ESO 컨트롤러**가 생겨서 손으로 넣을 필요가 없어졌다 (박찬건, `-Terraform-infrastructure#15`). 컨트롤러가 네임스페이스마다 하나씩이고 각자 ServiceAccount·Pod Identity 를 쓴다.
 
+| 컨트롤러 | 맡는 네임스페이스 | ServiceAccount |
+| --- | --- | --- |
+| `external-secrets` | `platform` | `external-secrets` |
+| `external-secrets-argocd` | `argocd` | `external-secrets-argocd` |
+
+`argocd` 쪽 역할은 `oneaction/review-service` **하나만** 읽도록 제한돼 있다. `ClusterSecretStore` 는 여전히 필요하지 않다.
+
+`creationPolicy: Merge` 라서 Argo CD 설치가 만든 `argocd-notifications-secret` 을 가져가지 않고 키 하나만 더한다. 설치가 붙인 라벨 3개가 그대로 남는다. `deletionPolicy: Retain` 이라 ExternalSecret 을 지워도 키는 남는다.
+
+**ESO 가 실제로 그 키를 소유하는지 확인한 방법** (2026-10-09, 같은 값이라 겹쳐 써도 티가 안 나서 한 번 비워봤다)
+
+```bash
+# ① 키를 지운다
+kubectl -n argocd patch secret argocd-notifications-secret --type json \
+  -p '[{"op":"remove","path":"/data/ARGOCD_WEBHOOK_TOKEN"}]'
+
+# ② 컨트롤러가 다시 가져오는지 — 시각이 ①과 맞아야 한다
+kubectl -n external-secrets logs deploy/external-secrets-argocd --tail=20 | grep "fetching secret value"
+
+# ③ 이벤트에도 남는다
+kubectl -n argocd get events --field-selector involvedObject.name=argocd-notifications
+#   Normal  Updated  externalsecret/argocd-notifications  secret updated
 ```
---namespace=platform
---enable-cluster-store-reconciler=false
-```
 
-`argocd` 네임스페이스의 `SecretStore`·`ExternalSecret` 은 컨트롤러가 보지 않아 상태조차 붙지 않는다. `ClusterSecretStore` CRD 도 설치돼 있지 않다. 그래서 `secretstore.yaml` 과 `externalsecret.yaml` 은 **자리만 만들어 두고 적용하지 않는다.**
+지우자마자 ESO 가 **스스로 감지해** Secrets Manager 에서 다시 가져왔다(`force-sync` annotation 을 붙이기 전에 이미 복구됐다). 정기 갱신 주기는 1시간이지만 대상 Secret 이 바뀌면 바로 반응한다.
 
-그동안은 Secrets Manager 에서 읽어 직접 넣는다. **값이 화면이나 명령 기록에 남지 않도록 파일로 넘긴다.**
+> `metadata.managedFields` 로는 소유자를 알 수 없다. ESO 가 server-side apply 를 쓰지 않아 비어 있다.
+
+급히 ESO 를 건너뛰어야 하면(컨트롤러 장애 등) 이 방법이 있다. **값이 화면이나 명령 기록에 남지 않도록 파일로 넘긴다.**
 
 ```bash
 aws secretsmanager get-secret-value \
@@ -81,9 +104,7 @@ kubectl -n argocd patch secret argocd-notifications-secret --type merge --patch-
 rm patch.json
 ```
 
-`argocd-notifications-secret` 은 Argo CD 설치가 만들어 둔 Secret 이다. `patch` 로 키만 더해야 설치가 붙인 라벨이 유지된다.
-
-인프라에서 ESO 범위를 넓히면(`--namespace` 제거 또는 `argocd` 추가) 두 파일을 적용하고 손으로 넣은 키를 ESO 에 넘긴다.
+손으로 넣어도 다음 갱신에서 ESO 가 Secrets Manager 값으로 되돌린다. **값을 바꿔야 하면 Secrets Manager 를 고쳐야 한다.**
 
 ## 확인
 

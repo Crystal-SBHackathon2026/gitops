@@ -75,7 +75,7 @@ kubectl -n argocd logs argocd-application-controller-0 | grep appResyncPeriod
 
 ## 배포 결과를 검토 서비스로 보내기
 
-`argocd/notifications/` 를 참고한다. 배포 성공·실패를 Review API 로 보내 업무 DB 에 baseline 을 쌓는다. 토큰을 넣는 방법과 ESO 제약도 그 문서에 있다.
+`argocd/notifications/` 를 참고한다. 배포 성공·실패를 Review API 로 보내 업무 DB 에 baseline 을 쌓는다. 토큰은 `argocd` 전용 ESO 컨트롤러가 Secrets Manager 에서 넣는다 — 손으로 넣지 않는다.
 
 ## AWS(EKS) 환경에서 주의할 점
 
