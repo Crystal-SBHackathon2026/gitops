@@ -18,14 +18,21 @@ spec:
       # 명세의 rollout.strategy 가 canary 면 렌더러가 이 설정을 그대로 둔다
       # (bluegreen 이면 strategy 를 통째로 바꾼다).
       #
-      # 가중치는 파드 수로 환산된다. replicas 가 2면 50% = 새 버전 1개 + 옛 버전 1개다.
-      # 그 상태에서 분석이 앱 응답을 60초 동안 재고, 멀쩡하면 100% 로 넘어간다.
-      # 실패하면 중단하고 옛 버전으로 되돌린다.
+      # 가중치는 파드 수로 환산된다. 지금 명세는 replicas 3 이라 50% = 새 버전 2 + 옛 버전 1 이다.
+      # 그 상태에서 분석이 60초 동안 두 가지를 재고(앱 응답 + 카나리 파드의 5xx 비율),
+      # 둘 다 멀쩡하면 100% 로 넘어간다. 하나라도 틀리면 중단하고 옛 버전으로 되돌린다.
       steps:
         - setWeight: 50
         - analysis:
             templates:
               - templateName: sample-app-health
+            # 🔴 카나리 파드만 재기 위한 값. Latest = 지금 올라가는(카나리) 파드 해시다.
+            # 이걸 안 넘기면 분석이 실패한다 — 템플릿의 args 에 기본값을 두지 않았다.
+            # Stable 로 바꾸면 옛 파드를 재게 되어 아무 의미가 없다.
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
   selector:
     matchLabels:
       app: sample-app

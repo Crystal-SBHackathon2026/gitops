@@ -1,8 +1,10 @@
-# 카나리 단계에서 앱이 실제로 응답하는지 재는 분석.
+# 카나리 단계에서 새 버전이 멀쩡한지 재는 분석. 지표가 둘이고 **둘 다 통과해야** 승격된다.
 #
-# Prometheus 가 아직 클러스터에 없어서 web 프로바이더로 **앱 응답을 직접** 본다.
-# /api/info 를 10초마다 6번(약 60초) 부르고, 기준을 넘으면 Argo Rollouts 가
-# 배포를 중단하고 이전 버전으로 되돌린다.
+#   api-ok      앱을 직접 불러 응답 내용을 본다  (Prometheus 없이도 된다)
+#   error-rate  카나리 파드의 5xx 비율을 본다    (Prometheus 필요, 이슈 #24)
+#
+# 10초마다 6번(약 60초) 재고, 기준을 넘으면 Argo Rollouts 가 배포를 중단하고
+# 이전 버전으로 되돌린다.
 #
 # ⚠️ URL 은 반드시 FQDN 이어야 한다. web 프로바이더는 argo-rollouts 컨트롤러 파드에서
 # 실행되므로 짧은 이름 sample-app 은 argo-rollouts 네임스페이스에서 찾다가 실패한다.
@@ -20,7 +22,8 @@
 #   잡는다   파드는 Ready 인데 응답이 계속 틀린 경우 (잘못된 이미지, 설정 오류)
 #   이미 있다 readiness 실패는 Rollouts 가 progressDeadline 으로 되돌린다 (10/7 검증)
 #   못 잡는다 일부 요청만 실패하는 부분 에러율. Service 가 카나리·안정 파드를 함께
-#            가리켜 요청이 번갈아 가므로 연속 오류가 잘 안 생긴다 → Prometheus 필요
+#            가리켜 요청이 번갈아 가므로 연속 오류가 잘 안 생긴다
+#            → 그래서 error-rate 를 더했다 (이슈 #24)
 #
 # Service 가 양쪽을 함께 가리키는 건 의도한 것이다. canaryService·stableService 를 쓰면
 # ALB 가 안정 Service 만 보게 되어 "절반이 새 버전을 본다"가 깨진다.
@@ -29,6 +32,11 @@ kind: AnalysisTemplate
 metadata:
   name: sample-app-health
 spec:
+  # Rollout 의 analysis.args 가 채운다. 기본값이 없으므로 안 넘기면 분석이 실패한다 —
+  # 조용히 전체 파드를 재는 것보다 명확히 실패하는 쪽이 낫다.
+  args:
+    - name: canary-hash
+
   metrics:
     - name: api-ok
       interval: 10s
@@ -41,3 +49,51 @@ spec:
           timeoutSeconds: 5
           jsonPath: "{$.app}"
       successCondition: result == "sample-app"
+
+    # 카나리 파드만의 5xx 비율. "새 버전이 10% 요청만 500 을 준다" 를 잡는다.
+    #
+    # ⚠️ rollouts_pod_template_hash 로 카나리 파드를 골라내는 것이 핵심이다.
+    # 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있어서, 이 라벨이 없으면
+    # 둘의 지표가 섞여 "새 버전만 에러가 난다" 가 희석된다. 값은 Rollout 의
+    # analysis.args 에서 podTemplateHashValue: Latest 로 받는다.
+    # 라벨은 ServiceMonitor 의 relabeling 이 남긴다 (argocd/monitoring-aws.yaml).
+    #
+    # ⚠️ clamp_min 을 빼면 멀쩡한 배포가 죽는다 (10/9 실측).
+    # 트래픽이 없거나 멈추면 분자·분모가 둘 다 0 이 되고 0/0 = NaN 이다.
+    # NaN <= 0.05 는 거짓이라 Failed 가 되고, failureLimit 에 걸려 롤백된다.
+    # `or vector(0)` 로는 못 막는다 — 왼쪽에 "NaN 값을 가진" 시계열이 있으면
+    # or 가 발동하지 않는다. 독립 AnalysisRun 으로 확인했다.
+    #   clamp_min 없음  →  측정값 [NaN] [NaN]  →  Failed  →  정상 배포가 중단
+    #   clamp_min 있음  →  측정값 [0] [0]      →  Successful
+    #
+    # ⚠️ /healthz 를 뺀다. readiness·liveness 가 5초·10초마다 때리므로 섞으면
+    # 사용자 요청의 실패가 희석된다. 실측: 전체 0.87 req/s 중 사용자 요청 0 req/s.
+    #   → **트래픽이 없으면 이 지표는 아무것도 못 본다.** 데모에서 부분 실패를
+    #     보여주려면 카나리가 도는 동안 요청을 넣어야 한다. README 에 명령을 적어뒀다.
+    #
+    # 🔴 consecutiveErrorLimit 이 count 와 같은 이유 — 오류로는 절대 중단되지 않게 했다.
+    # 로컬 k3s 에는 monitoring 네임스페이스가 없어서(확인함) 이 지표가 매번 Error 다.
+    # base 를 두 환경이 공유하므로, 오류에 민감하게 두면 **로컬 카나리가 전부 중단된다.**
+    # Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 하다 — 그때의 안전망은
+    # 위 api-ok 다. 환경별로 다르게 하려면 base 를 분리해야 하는데, 지금 필요한 변경이 아니다.
+    - name: error-rate
+      interval: 10s
+      count: 6
+      failureLimit: 1              # 2번째 Failed 에서 중단
+      consecutiveErrorLimit: 6     # count 와 같다 = 오류로는 중단되지 않는다 (위 설명)
+      provider:
+        prometheus:
+          # FQDN 이어야 한다. 분석은 argo-rollouts 컨트롤러 파드에서 돌아간다.
+          address: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            (
+              sum(rate(http_requests_total{app="sample-app",rollouts_pod_template_hash="{{args.canary-hash}}",route!="/healthz",status=~"5.."}[1m]))
+              or vector(0)
+            )
+            /
+            clamp_min(
+              sum(rate(http_requests_total{app="sample-app",rollouts_pod_template_hash="{{args.canary-hash}}",route!="/healthz"}[1m]))
+              or vector(0),
+              0.001
+            )
+      successCondition: result[0] <= 0.05
