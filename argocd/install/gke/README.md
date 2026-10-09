@@ -65,6 +65,16 @@ EKS 담당의 등록과 Application 적용 이후에는 아래 항목을 별도�
 
 현재 GCP overlay에는 Ingress가 없어요. 공개 LB·NEG/health check·외부 응답은 연재님 렌더러 보완과 연결하는 후속 작업이에요. GKE Prometheus를 설치하거나 공통 메트릭 분석 URL을 임의로 바꾸지 않아요.
 
+### 실제 확인과 활성화 대기
+
+2026-10-09 GKE에서 Controller Ready·CRD 5개·실제 SA 인증/RBAC 10개 검사를 통과했어요. 최신 main의 GCP overlay는 Service·AnalysisTemplate·Rollout server dry-run을 통과했지만, dry-run은 카나리 실행 성공을 확인하지 않아요.
+
+[PR #39](https://github.com/Crystal-SBHackathon2026/gitops/pull/39)가 추가한 공통 `error-rate`만 임시 AnalysisRun으로 실행했어요. GKE에 Prometheus가 없어 7회 연속 DNS 오류 후 `Error`로 종료됐어요. `count=6`, `consecutiveErrorLimit=6`이면 오류를 무시한다는 조건은 성립하지 않았어요. 시험 AnalysisRun은 삭제했어요.
+
+이후 성진님이 [PR #42](https://github.com/Crystal-SBHackathon2026/gitops/pull/42)를 머지해 공통 `error-rate`와 사용하지 않는 canary-hash 인자를 제거했어요. 현재 AWS·로컬·GCP 모두 `api-ok`만 사용하므로 GCP의 Prometheus 차단 조건은 해소됐어요. 환경별 에러율 분석 복원은 렌더러 보완 또는 측정 백엔드의 팀 합의가 필요하지만 첫 GCP 연결의 선행 조건과 분리해요. GKE Prometheus는 추가 설치하지 않았어요.
+
+EKS의 실제 송신 IP·운영 인증/갱신·클러스터 등록과 실제 앱 실행 검증은 남아 있어요. [검증 기록](../../../docs/gcp-gke-verification-2026-10-09.md)에 성공·과거 실패·최신 조치·미확인 항목을 구분하고, [연재님 능력표 인계](../../../docs/gcp-gke-capability-handoff.md)에 실측값을 정리했어요.
+
 ## 회수와 운영 종료
 
 운영 종료 목표는 2026-10-12 23:59 KST이고 사용자가 직접 삭제해요. 10월 13일 00:00의 예약은 읽기 전용 종료 점검이에요.
