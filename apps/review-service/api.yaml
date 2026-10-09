@@ -47,9 +47,9 @@ spec:
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: ARGOCD_WEBHOOK_TOKEN, optional: true}
             # 배포 진행 화면(/ui/reviews/{id})의 환경별 앱 주소 (review-service#50). http(s) 만 받는다.
-            # aws 는 sample-app ingress ADDRESS (10/09 장애 뒤 새로 만든 ALB). local 은 주소를 받으면 추가 — 없으면 카드에 주소 없이 표시
+            # aws 는 sample-app ingress ADDRESS (10/09 장애 뒤 새로 만든 ALB), local 은 로컬 k3s 의 sample-app 포트(localhost:8081)
             - name: APP_URLS
-              value: '{"sample-app": {"aws": "http://k8s-sampleap-sampleap-88af4f1f82-400100408.ap-northeast-2.elb.amazonaws.com"}}'
+              value: '{"sample-app": {"aws": "http://k8s-sampleap-sampleap-88af4f1f82-400100408.ap-northeast-2.elb.amazonaws.com", "local": "http://localhost:8081"}}'
           readinessProbe:
             httpGet: {path: /healthz, port: http}
             periodSeconds: 5
