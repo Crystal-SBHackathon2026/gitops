@@ -20,3 +20,5 @@ data:
   INTAKE_REPOSITORIES: Crystal-SBHackathon2026/sample-app
   # PR 커밋 상태(review-service/intake)의 링크 /intakes/{id} 앞부분
   REVIEW_API_PUBLIC_URL: http://oneaction-alb-2039760505.ap-northeast-2.elb.amazonaws.com
+  # 워커의 사례·가이드 의미 검색 (qdrant.yaml). 비우면 규칙 문서 파일 검색만 쓴다
+  QDRANT_URL: http://qdrant:6333

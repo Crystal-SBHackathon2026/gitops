@@ -38,9 +38,9 @@ spec:
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: GITHUB_TOKEN, optional: true}
-          resources:
-            requests: {cpu: 100m, memory: 256Mi}
-            limits: {cpu: 500m, memory: 768Mi}
+          resources:  # 의미 검색용 임베딩 모델(fastembed 다국어 MiniLM)을 메모리에 올린다
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 1536Mi}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
