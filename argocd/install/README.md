@@ -8,7 +8,7 @@ Terraform이 관리하는 AWS 리소스(VPC, ALB, RDS 등)와는 소유 범위�
 | Argo CD | v3.5.4 | `argocd` | gitops 레포를 보고 클러스터에 배포 |
 | Argo Rollouts | v1.10.0 | `argo-rollouts` | `Rollout` 리소스 처리, 헬스체크 실패 시 자동 롤백 |
 
-- Argo CD는 **배포 대상 클러스터 안에 설치**합니다(in-cluster). 별도 IAM 역할이나 EKS access entry가 필요하지 않습니다.
+- Argo CD는 AWS EKS와 로컬 k3s 안에 각각 설치합니다. GCP GKE는 기존 중앙 EKS Argo CD에서 관리하므로 GKE에 Argo CD를 따로 설치하지 않습니다. 원격 GKE 접근·인증은 별도로 연결합니다.
 - UI용 로드밸런서는 만들지 않습니다. 필요할 때만 `kubectl port-forward`로 접속합니다.
 - sample-app은 `Rollout`으로 배포되므로 Argo Rollouts를 먼저 설치해야 합니다. 없으면 `no matches for kind "Rollout"` 오류가 납니다.
 
@@ -18,13 +18,15 @@ Terraform이 관리하는 AWS 리소스(VPC, ALB, RDS 등)와는 소유 범위�
 | --- | --- | --- | --- |
 | AWS EKS | EKS 안 | `server: kubernetes.default.svc` (자기 자신) | 돌아감 |
 | 로컬 k3s | **로컬 클러스터 안** (pull) | `name: crystal-busan` | 돌아감 |
-| GCP GKE | 중앙 EKS | `name: tokyo-gke` | GKE 없음 |
+| GCP GKE | 중앙 EKS | `name: tokyo-gke` | GKE 생성 완료. [GKE bootstrap·등록 절차](gke/README.md) 검증 후 앱 연결 |
 
 로컬은 중앙 EKS 에서 들여다보지 않고 **스스로 이 레포를 읽습니다**. 데모 중에 Tailscale 같은 인바운드 경로를 유지하지 않아도 되는 쪽을 택했습니다.
 
 🔴 **local·gcp Application 은 `server` 가 아니라 `name` 을 씁니다.** `kubernetes.default.svc` 는 "Argo CD 가 있는 클러스터" 라서, local 파일을 EKS 에 적용하면 local overlay 가 EKS 에 배포되어 aws overlay 를 밀어냅니다(네임스페이스가 둘 다 `sample-app`). 10/9 에 실제로 그 상태였습니다. 이름을 쓰면 등록 안 된 클러스터에서 `cluster not found` 로 **명확히 실패**합니다.
 
 ## 설치
+
+아래 공통 설치 명령은 EKS·로컬용입니다. GCP는 [GKE 전용 절차](gke/README.md)로 Rollouts·namespace·앱 RBAC만 준비하고 중앙 EKS 등록을 인계합니다.
 
 ```bash
 # 1. Argo CD

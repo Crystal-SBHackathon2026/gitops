@@ -110,14 +110,16 @@ Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 합�
 
 배포 결과를 검토 서비스로 보내는 설정은 [argocd/notifications/README.md](argocd/notifications/README.md)에 있습니다.
 
+생성된 도쿄 GKE의 Rollouts·배포 RBAC와 중앙 EKS 등록 절차는 [GKE 연결 문서](argocd/install/gke/README.md)를 따릅니다. 설치 완료와 실제 앱·알림 연결 완료를 구분합니다.
+
 ## Application 목적지
 
-| 파일 | `destination.server` | 상태 |
+| 파일 | 목적지 | 상태 |
 | --- | --- | --- |
 | `sample-app-aws.yaml` | `https://kubernetes.default.svc` | 적용됨. Argo CD가 EKS 안에 있어 in-cluster가 맞습니다 |
 | `review-service-aws.yaml` | `https://kubernetes.default.svc` | 적용됨 |
-| `sample-app-local.yaml` | `LOCAL_K3S_API_SERVER` | **아직 적용하지 않습니다** |
-| `sample-app-gcp.yaml` | `GCP_GKE_API_SERVER` | **아직 적용하지 않습니다** |
+| `sample-app-local.yaml` | `name: crystal-busan` | 로컬 자체 Argo CD에 등록해 사용합니다. [로컬 절차](argocd/install/README.md#로컬부산-k3s-환경) |
+| `sample-app-gcp.yaml` | `name: tokyo-gke` | GKE 생성 완료. 중앙 EKS 등록·접근·인증 검증 뒤 적용합니다 |
 
 **운영 모델에 따라 `local`·`gcp` 의 값이 달라집니다.**
 
@@ -140,9 +142,8 @@ kubectl create namespace argo-rollouts
 kubectl apply -n argo-rollouts --server-side \
   -f https://github.com/argoproj/argo-rollouts/releases/download/v1.10.0/install.yaml
 
-# 목적지를 이 클러스터로 바꿔서 적용한다 (레포의 플레이스홀더는 그대로 둔다)
-sed 's|LOCAL_K3S_API_SERVER|https://kubernetes.default.svc|' argocd/sample-app-local.yaml \
-  | kubectl apply -f -
+# argocd/install/README.md의 로컬 절차로 이 Argo CD에 crystal-busan을 먼저 등록한다.
+kubectl apply -f argocd/sample-app-local.yaml
 ```
 
 접속: http://localhost:8081
