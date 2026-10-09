@@ -14,3 +14,7 @@ data:
   KAFKA_BOOTSTRAP: "b-1.oneactionreview.lf4qfu.c4.kafka.ap-northeast-2.amazonaws.com:9092,b-2.oneactionreview.lf4qfu.c4.kafka.ap-northeast-2.amazonaws.com:9092"
   REVIEW_LLM_MODEL: claude-sonnet-5-5
   GITHUB_CI_APP_SLUG: github-actions
+  # baseline 이 없는 레포의 deploy.yaml 생성·복구(intake)에서 쓸 배포 대상 (env/region)
+  DEFAULT_TARGET: aws/ap-northeast-2
+  # PR 커밋 상태(review-service/intake)의 링크 /intakes/{id} 앞부분
+  REVIEW_API_PUBLIC_URL: http://oneaction-alb-2039760505.ap-northeast-2.elb.amazonaws.com
