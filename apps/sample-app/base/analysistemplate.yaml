@@ -76,11 +76,30 @@ spec:
     # base 를 두 환경이 공유하므로, 오류에 민감하게 두면 **로컬 카나리가 전부 중단된다.**
     # Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 하다 — 그때의 안전망은
     # 위 api-ok 다. 환경별로 다르게 하려면 base 를 분리해야 하는데, 지금 필요한 변경이 아니다.
+    #
+    # 🔴 initialDelay 20초 — 없으면 처음 두 번이 버려진다 (10/9 실측).
+    # rate 는 창 안에 표본이 2개 이상 있어야 값을 낸다. 10초마다 긁으니 갓 뜬 카나리
+    # 파드는 20초가 지나야 측정이 된다. 그 전 측정은 clamp_min 덕에 0 으로 통과하므로
+    # 실패를 놓친다. FAIL_RATE 0.3 주입 실험에서 그대로 나왔다.
+    #
+    #   측정 1 (t=0s)    [0]        ← 버려진 측정
+    #   측정 2 (t=10s)   [0]        ← 버려진 측정
+    #   측정 3 (t=20s)   [0.236]    ← 여기서부터 실제 값
+    #   측정 4 (t=30s)   [0.293]    → 2번째 Failed → 중단
+    #
+    # 그래서 20초 늦게 시작하고 count 를 6 → 4 로 줄였다.
+    # 전체 분석 길이는 그대로 약 60초다 (api-ok 가 60초를 쓴다).
+    # 같은 장애였다면 측정 1·2 에서 바로 걸려 20초 빨리 중단된다.
+    #
+    # ⚠️ initialDelay 는 CRD 에 있는 필드다. 이름을 틀리면 쿠버네티스가 모르는 필드를
+    # **조용히 버려서** 오류 없이 무시된다. 독립 AnalysisRun 으로 실제로 20초를
+    # 기다리는지 확인했다 (시작 11:23:59 → 첫 측정 11:24:19).
     - name: error-rate
+      initialDelay: 20s
       interval: 10s
-      count: 6
+      count: 4                     # initialDelay 20s + 10s x 4 = 약 60초
       failureLimit: 1              # 2번째 Failed 에서 중단
-      consecutiveErrorLimit: 6     # count 와 같다 = 오류로는 중단되지 않는다 (위 설명)
+      consecutiveErrorLimit: 4     # count 와 같다 = 오류로는 중단되지 않는다 (위 설명)
       provider:
         prometheus:
           # FQDN 이어야 한다. 분석은 argo-rollouts 컨트롤러 파드에서 돌아간다.
