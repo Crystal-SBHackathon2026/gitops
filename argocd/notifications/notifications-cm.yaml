@@ -1,0 +1,55 @@
+# 배포 성공·실패를 검토 서비스로 보낸다. 업무 DB 에 baseline 이 쌓여야
+# "이전 배포와 비교하는" 규칙(DB 엔진 변경·볼륨 축소 등)이 걸린다.
+#
+# Argo CD 설치가 만든 빈 argocd-notifications-cm 을 이 내용으로 덮는다.
+# notifications 컨트롤러가 ConfigMap 변경을 감지해 다시 읽으므로 재시작은 필요 없다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  # 클러스터 안에서 부르므로 Service 주소를 쓴다. 토큰은 argocd-notifications-secret 에서 온다.
+  service.webhook.review-api: |
+    url: http://platform.platform.svc.cluster.local:8080/webhooks/argocd
+    headers:
+      - name: Authorization
+        value: Bearer $ARGOCD_WEBHOOK_TOKEN
+      - name: Content-Type
+        value: application/json
+
+  # app·env 는 Application annotation 에서 읽는다.
+  # Application 이름(sample-app-aws)을 잘라 쓰지 않는 이유: 앱 이름은 deploy.yaml 의
+  # metadata.name 이라 Application 이름과 어긋날 수 있다.
+  # images 는 검토 서비스가 병합 SHA 와 매칭하는 키라 반드시 들어가야 한다.
+  template.deploy-result: |
+    webhook:
+      review-api:
+        method: POST
+        body: |
+          {
+            "app": "{{index .app.metadata.annotations "oneaction.crystal/app"}}",
+            "env": "{{index .app.metadata.annotations "oneaction.crystal/env"}}",
+            "health": "{{.app.status.health.status}}",
+            "images": {{toJson .app.status.summary.images}},
+            "revision": "{{.app.status.sync.revision}}"
+          }
+
+  # 동기화가 끝나고 Healthy 가 된 순간 한 번. oncePer 가 리비전 기준이라
+  # gitops 커밋 하나당 최대 한 번 간다.
+  #
+  # commit_overlay 와 CI 가 각각 gitops 에 커밋해 두 번 sync 될 수 있고, 그때 첫 알림은
+  # overlay 만 반영된 상태라 images 가 옛 태그다. oncePer 를 images 기준으로 바꾸면
+  # 그건 걸러지지만 설정만 바뀐 배포(이미지 동일)는 알림이 아예 안 가 baseline 이
+  # 갱신되지 않는다. 그래서 리비전 기준으로 두고 중복은 Review API 가 멱등 처리한다
+  # (2026-10-09 김혜연 합의).
+  trigger.on-deployed: |
+    - when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+      oncePer: app.status.operationState.syncResult.revision
+      send: [deploy-result]
+
+  # 배포 실패. Healthy·Degraded 외의 상태(Progressing 등)는 보내지 않는다.
+  trigger.on-health-degraded: |
+    - when: app.status.health.status == 'Degraded'
+      oncePer: app.status.sync.revision
+      send: [deploy-result]
