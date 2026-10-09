@@ -38,6 +38,14 @@ spec:
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: GITHUB_TOKEN, optional: true}
+          # 메인 루프가 poll 마다(1초), 메시지 처리 중에도 30초마다 /tmp/worker-alive 를 갱신한다 (review-service#48).
+          # 2분 넘게 그대로면 루프가 멈춘 것 — 재시작한다. 처리 중 갱신은 max_poll_interval(15분)까지만
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "find /tmp/worker-alive -mmin -2 | grep -q ."]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
           # 의미 검색용 임베딩 모델(fastembed 다국어 MiniLM)을 메모리에 올린다. 실측: 모델 없이 106Mi →
           # 모델 + 검색 약 690MB(VmHWM). 검토 그래프·judge 까지 약 800MB 로 보고 요청 1Gi, 상한은 그 2배
           resources:
