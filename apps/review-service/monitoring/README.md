@@ -1,6 +1,6 @@
 # 검토 서비스 모니터링 (`apps/review-service/monitoring/`)
 
-review-api·review-worker 지표(Prometheus)와 업무 DB(Postgres) 대시보드. **아직 상위 kustomization 에 넣지 않았다** — 아래 순서대로 켠다.
+review-api·review-worker 지표(Prometheus)와 업무 DB(Postgres) 대시보드. 10/09 에 아래 순서대로 켰다 (1·2번 완료, 3번 이 디렉터리를 상위 kustomization 에 추가).
 
 | 파일 | 내용 |
 |---|---|
