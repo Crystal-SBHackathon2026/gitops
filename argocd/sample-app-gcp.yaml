@@ -15,7 +15,8 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  # 소스가 둘이다. overlay 는 렌더러가 만드는 생성물이고, 분석은 손으로 관리한다.
+  # 소스가 둘이다. gcp overlay 는 손 파일이다(렌더러는 overlays/aws 만 만든다). 분석도 손으로 관리한다.
+  # gcp 만 블루그린이다 — overlay 를 머지한 뒤에 이 파일을 처음 적용한다 (overlay 주석 참고).
   # 🔴 분석 경로가 환경마다 다르다 — Prometheus 가 있는 곳만 에러율 지표를 켠다 (#24).
   sources:
     - repoURL: https://github.com/Crystal-SBHackathon2026/gitops.git
