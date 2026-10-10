@@ -1,0 +1,84 @@
+# 카나리 분석이 "볼 것"을 만들어 주는 부하 장치.
+#
+# 왜 필요한가
+#   에러율 지표는 비율이라 **분모(요청 수)가 없으면 판정을 못 한다.**
+#   요청이 하나도 없으면 분자 0 · 분모 0 이고, 분석 템플릿의 clamp_min 이
+#   분모를 0.001 로 바꿔 결과가 0 이 된다 → 기준 0.05 이하 → **통과**.
+#   즉 트래픽이 없으면 망가진 버전이 그대로 승격된다.
+#
+#   10/10 에 이걸 두 번 실측했다 (sample-app #42, #44).
+#     21:10  요청 없음           측정 [0] [0] [0] [0]       → 통과 → 30% 실패가 100% 승격
+#     22:57  0.5초 기록기로 요청  측정 [0.24] ...            → 2번째 Failed 에서 자동 중단
+#   차이는 설정이 아니라 **트래픽뿐이었다.**
+#
+#   데모에서는 이용자 화면(⑤번 노트북)의 자동 새로고침이 그 역할을 한다.
+#   그런데 그 화면이 꺼지거나, 탭이 백그라운드로 넘어가거나, 네트워크가 끊기면
+#   장면 11(서울 자동 중단)이 통째로 안 나온다. 사람 손에 걸린 안전장치다.
+#   그래서 클러스터 안에서 항상 도는 보험을 둔다.
+#
+# 얼마나 보내나
+#   약 5 요청/초. 분석 창(30초) 안에 캐너리 파드로 150번쯤 들어간다.
+#   Service 가 캐너리·안정 파드를 함께 가리키므로 요청은 번갈아 간다.
+#   30% 실패 버전이면 비율이 0.3 근처로 또렷하게 찍힌다.
+#   파드 3개에 초당 5건은 부하라고 할 수준이 아니다 (CPU 상한 250m).
+#
+# 🔴 /healthz 가 아니라 /api/info 를 부른다.
+#   분석 쿼리가 route!="/healthz" 로 헬스체크를 빼고 세기 때문이다.
+#   FAIL_RATE 가 걸리는 것도 /api/info 다.
+#
+# ⚠️ 이미지는 sample-app 자신을 쓴다 (실행 명령만 바꿨다).
+#   새 레지스트리를 늘리지 않으려는 것이다. 노드에 이미 받아져 있고, 공개라
+#   pull 시크릿이 필요 없으며, Docker Hub 익명 pull 제한에도 걸리지 않는다.
+#   태그를 고정해 둔다 — 부하 장치가 앱 배포를 따라다닐 이유가 없다.
+#
+# 끄는 법
+#   kubectl -n sample-app scale deploy/sample-app-loadgen --replicas=0
+#   되살리려면 Argo CD 가 selfHeal 로 1 로 되돌리므로, 오래 끌 거면
+#   argocd/sample-app-loadgen-aws.yaml Application 을 지우는 쪽이 맞다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app-loadgen
+  labels:
+    app.kubernetes.io/name: sample-app-loadgen
+    app.kubernetes.io/part-of: sample-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sample-app-loadgen
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sample-app-loadgen
+    spec:
+      # 부하 장치가 앱보다 오래 붙잡고 있을 이유가 없다.
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: loadgen
+          image: ghcr.io/crystal-sbhackathon2026/sample-app:85bb60869af2b9acb14787a6c4c8a61099fd8d6d
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          # FQDN 이어야 한다 (같은 네임스페이스라 짧은 이름도 되지만, 분석 템플릿과
+          # 표기를 맞춰 둔다). 500 응답에 wget 이 실패해도 루프가 멈추면 안 되므로 || true.
+          args:
+            - |
+              echo "loadgen 시작 — /api/info 로 약 5 요청/초"
+              while true; do
+                wget -q -O /dev/null -T 3 \
+                  http://sample-app.sample-app.svc.cluster.local/api/info || true
+                sleep 0.2
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]

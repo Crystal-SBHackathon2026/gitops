@@ -17,9 +17,11 @@ apps/sample-app/
   overlays/gcp/              도쿄 (GKE, asia-northeast1)
 apps/review-service/         검토 서비스. AWS EKS platform 네임스페이스 전용
                              Review API · 워커 · Qdrant · 시크릿 · 플랫폼 ALB 연결
+apps/loadgen/aws/            카나리 분석이 "볼 것"을 만드는 부하 장치 (AWS 전용)
 argocd/                      클러스터별 Argo CD Application
   install/                   Argo CD · Argo Rollouts 설치 순서와 버전, 재조회 주기
   notifications/             배포 결과를 검토 서비스로 보내는 설정
+scripts/loadgen.sh           같은 일을 노트북에서. 클러스터 접근 없이 공개 주소로 쏜다
 ```
 
 렌더링 확인: overlay와 해당 Application의 두 번째 `analysis/` source를 각각 `kubectl kustomize`로 확인합니다. overlay만 렌더링하면 AnalysisTemplate이 포함되지 않습니다.
@@ -54,6 +56,26 @@ argocd/                      클러스터별 Argo CD Application
 | --- | --- | --- |
 | `api-ok` (앱을 직접 부름) | 응답이 **계속** 틀린 경우 — 잘못된 이미지, 설정 오류 | 일부 요청만 실패하는 경우. Service 가 카나리·안정 파드를 함께 가리켜 요청이 번갈아 가므로 연속 오류가 잘 안 생긴다 |
 | `error-rate` (Prometheus) | **부분 에러율** — "새 버전이 10% 요청만 500 을 준다" | 트래픽이 없으면 아무것도 못 본다 |
+
+### 트래픽이 없으면 판정을 못 한다
+
+`error-rate` 는 비율이라 **분모(요청 수)가 없으면 판단할 근거가 없습니다.** 요청이 하나도 없으면 분자 0 · 분모 0 이고, 템플릿의 `clamp_min` 이 분모를 `0.001` 로 바꿔 결과가 0 이 됩니다. 기준 0.05 이하라 **통과**합니다. `clamp_min` 은 반대 사고(트래픽 없는 멀쩡한 배포가 `NaN` 때문에 전부 중단되던 것, [#39](https://github.com/Crystal-SBHackathon2026/gitops/issues/39))를 막으려고 일부러 넣은 것인데, 그 보호 안에 **실패를 못 보는 눈먼 구간**이 같이 들어 있습니다.
+
+2026-10-10 에 같은 장애 주입으로 두 번 재서 확인했습니다. 차이는 설정이 아니라 트래픽뿐이었습니다.
+
+| | 요청 | 측정값 | 결과 |
+| --- | --- | --- | --- |
+| [sample-app #42](https://github.com/Crystal-SBHackathon2026/sample-app/pull/42) | 없음 | `[0] [0] [0] [0]` | 통과 → **30% 실패 버전이 100% 승격** |
+| [sample-app #46](https://github.com/Crystal-SBHackathon2026/sample-app/pull/46) | 0.5초마다 | `[0.24] …` | 2번째 Failed 에서 **자동 중단** |
+
+그래서 분석 창 동안 요청이 끊기지 않도록 부하 장치를 둡니다. 시연 때는 이용자 화면의 자동 새로고침이 그 역할을 하지만, 그 화면이 꺼지거나 탭이 백그라운드로 넘어가면 안전장치가 통째로 안 돕니다. 사람 손에 걸어 둘 일이 아닙니다.
+
+| | 어디서 도나 | 언제 쓰나 |
+| --- | --- | --- |
+| `apps/loadgen/aws/` | 클러스터 안 (Deployment 1개, 약 5 요청/초) | 항상. 전용 Application 이 관리하므로 지우면 바로 꺼진다 |
+| `scripts/loadgen.sh` | 노트북 | 리허설·시험. 1초마다 현재 에러율을 찍어 줘서 중단되는 순간이 눈에 보인다 |
+
+🔴 `overlays/` 안에 두지 않았습니다. overlay 는 렌더러가 배포마다 다시 만드는 생성물이라 손으로 넣은 것이 지워집니다.
 
 `error-rate` 는 `rollouts_pod_template_hash` 로 **카나리 파드만** 골라서 잽니다. 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있어서, 이 라벨이 없으면 지표가 섞여 "새 버전만 에러가 난다" 가 희석됩니다.
 
