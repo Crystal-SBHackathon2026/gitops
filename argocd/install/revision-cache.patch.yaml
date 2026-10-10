@@ -16,9 +16,12 @@
 # 측정 (10/9):
 #   gitops 커밋 19:15:15 → Argo CD 리비전 갱신 19:18:30   = 3분 15초
 #
-# 10초로 줄인다. 데모에서 3분을 그냥 기다리는 구간이 사라진다.
+# 5초로 줄인다. 데모에서 3분을 그냥 기다리는 구간이 사라진다.
+# (10/9 에 10초로 줄였고, 10/10 에 15초 재조회와 맞춰 5초로 내렸다 — sample-app#29)
 #
-# 비용: ls-remote 호출이 늘어난다. Application 이 4개뿐이고 30초마다 한 번이라
+# 실측 (10/10): 감지 20초 → 기대 8초 내외. 재조회 15초 + 캐시 5초다.
+#
+# 비용: ls-remote 호출이 늘어난다. Application 이 4개뿐이고 15초마다 한 번이라
 # GitHub rate limit 과는 거리가 멀다.
 #
 # 원래는 깃허브 웹훅으로 미는 쪽이 정석이지만, argocd-server 가 공개 주소로
@@ -61,4 +64,4 @@ spec:
           # ARGOCD_REVISION_CACHE_EXPIRATION 환경변수가 연결돼 있지 않아 조용히 무시된다.
           args:
             - /usr/local/bin/argocd-repo-server
-            - --revision-cache-expiration=10s
+            - --revision-cache-expiration=5s

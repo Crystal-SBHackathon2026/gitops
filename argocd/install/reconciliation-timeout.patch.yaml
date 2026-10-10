@@ -1,4 +1,5 @@
-# Argo CD 가 git 을 다시 읽는 주기. 기본 180초를 30초로 줄인다.
+# Argo CD 가 git 을 다시 읽는 주기. 기본 180초를 15초로 줄인다.
+# (10/9 에 30초로 줄였고, 10/10 에 데모 시간을 더 줄이려고 15초로 내렸다 — sample-app#29)
 #
 # ⚠️ kubectl apply 로 쓰지 않는다. argocd-cm 에는 설치가 넣은 키가 9개 더 있어서
 #    apply 하면 그것들이 지워진다. 반드시 patch 로 이 키만 더한다.
@@ -16,7 +17,7 @@
 #
 # Application 이 2개뿐이라 API 서버 부하는 미미하다.
 #
-# ⚠️ jitter 를 0 으로 두지 않으면 주기가 30초가 아니다.
+# ⚠️ jitter 를 0 으로 두지 않으면 주기가 설정값이 아니다.
 # Argo CD 는 재조회 주기에 0~jitter 사이의 무작위 시간을 더한다. 기본값이 1분이라
 # timeout.reconciliation 만 30s 로 두면 실제 주기가 30~90초가 된다.
 #   컨트롤러 시작 로그: appResyncPeriod=30s, appHardResyncPeriod=0s, appResyncJitter=1m0s
@@ -24,5 +25,5 @@
 # 지터는 Application 이 많을 때 API 서버에 요청이 몰리지 않게 분산하는 장치다.
 # 우리는 2개뿐이라 의미가 없고 지연만 늘린다.
 data:
-  timeout.reconciliation: 30s
+  timeout.reconciliation: 15s
   timeout.reconciliation.jitter: 0s
