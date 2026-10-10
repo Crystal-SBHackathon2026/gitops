@@ -9,4 +9,4 @@ resources:
 images:
   - name: ghcr.io/crystal-sbhackathon2026/sample-app
     # CI(update-gitops)가 커밋 SHA로 자동 갱신한다.
-    newTag: a7f10232addc41507d02e6d4cd4e63ca8d0a4cea
+    newTag: 002d360e38f5a6cfd7892875bae0f2f3b54cb80a
