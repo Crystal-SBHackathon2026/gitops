@@ -45,19 +45,36 @@ Application 이름(`sample-app-aws`)을 잘라 쓰지 않는 이유는, 앱 이�
 
 왜 순서가 중요한가 — `sync_failed` 는 **health 가 `Healthy` 일 수 있다.** 새 버전 적용이 실패하면 옛 버전이 그대로 떠 있기 때문이다. health 만 보는 지금 수신 코드에 먼저 켜면 **실패가 정상 baseline 으로 쌓인다.** 그러면 다음 검토가 잘못된 기준과 비교한다.
 
-| | 지금 | 준비된 것 |
-| --- | --- | --- |
-| 템플릿 | `deploy-result` | `deploy-result-deployed` · `-degraded` · `-sync-failed` |
-| 트리거 | `on-deployed` · `on-health-degraded` | 위 둘 + `on-sync-failed` |
-| 구독 | 앞의 둘만 | 그대로 (새 트리거는 **구독 안 됨** → 평가되지 않아 아무것도 안 나간다) |
+| | 지금 (2026-10-10 전환 완료) |
+| --- | --- |
+| 템플릿 | `deploy-result-deployed` · `-degraded` · `-sync-failed` (옛 `deploy-result` 는 삭제) |
+| 트리거 | `on-deployed` · `on-health-degraded` · `on-sync-failed` |
+| 구독 | AWS 는 세 개 다. **로컬·GCP 는 아직 없다** (아래 참고) |
 
-### 전환 절차 (김연재 수신 코드 배포 뒤 PR 하나)
+### 전환 절차 — ✅ 끝났다 (2026-10-10)
 
-1. `trigger.on-deployed` 의 `send: [deploy-result]` → `[deploy-result-deployed]`
-2. `trigger.on-health-degraded` 의 `send: [deploy-result]` → `[deploy-result-degraded]`
-3. Application 에 `notifications.argoproj.io/subscribe.on-sync-failed.review-api: ""` 추가
-4. `template.deploy-result` 삭제
-5. 로컬 k3s 에 일부러 실패를 넣어 세 알림이 실제로 가는지 확인
+1. ✅ `trigger.on-deployed` 의 `send:` → `[deploy-result-deployed]`
+2. ✅ `trigger.on-health-degraded` 의 `send:` → `[deploy-result-degraded]`
+3. ✅ Application 에 `notifications.argoproj.io/subscribe.on-sync-failed.review-api: ""` 추가
+4. ✅ `template.deploy-result` 삭제
+5. ⬜ 일부러 실패를 넣어 세 알림이 실제로 가는지 확인 — 김연재님과 같이 본다
+
+순서를 지킨 근거: review-service#53 이 배포된 뒤에 켰다 (EKS 배포본 `10ba274f` 에 #53 포함, behind 0).
+
+### 🔴 로컬·GCP 는 구독이 아직 없다
+
+구독 어노테이션이 **AWS Application 에만** 있다. 그래서 **로컬 배포 결과는 Review API 로 가지 않는다** — 로컬은 baseline 이 쌓이지 않고, 진행 화면·커밋 타임라인에도 로컬 배포가 보이지 않는다.
+
+붙이려면 둘이 필요하다.
+
+| 필요한 것 | 담당 |
+| --- | --- |
+| 공개 경로(플랫폼 ALB `/webhooks/argocd`) · VPC 연결 · Secrets Manager 토큰 공급 | 박찬건 (infra#19) |
+| `notifications-cm` 의 template · trigger · Application 구독 어노테이션 | 이성진 |
+
+⚠️ 구독을 붙일 때 **`oneaction.crystal/env` 어노테이션을 같이 넣어야 한다.** 없으면 템플릿이 `""` 을 보내고 수신 쪽이 **422 로 거절**한다 (김연재 확인). `env` 는 `aws` · `gcp` · `local` 셋만 받는다.
+
+로컬 Argo CD 는 `argocd-notifications-cm` 이 비어 있고 `argocd-notifications-secret` 도 `DATA 0` 이다. 토큰 공급 방식이 정해지면 이 레포의 cm 을 로컬에도 넣으면 된다.
 
 ### 🔴 템플릿이 셋인 이유 — `event_type` 을 상태에서 유도하지 않는다
 

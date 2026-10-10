@@ -8,18 +8,14 @@
 # ──────────────────────────────────────────────────────────────────────────
 # 지금 두 형식이 함께 들어 있다 (2026-10-09, 김연재 요청)
 #
-#   deploy-result                 옛 형식. 지금 실제로 가는 것
-#   deploy-result-*  (3개)        deployment.result/v1. 준비만 해둔 것
+#   deploy-result-*  (3개)        deployment.result/v1. 지금 실제로 가는 것
 #
-# 🔴 새 형식으로 바꾸는 것은 김연재 수신 코드가 배포된 뒤다.
-#    sync_failed 는 health 가 Healthy 일 수 있어서, health 만 보는 지금 수신 코드가
-#    그것을 "성공" 으로 읽는다. 순서를 뒤집으면 실패가 정상 baseline 으로 쌓인다.
+# ✅ 2026-10-10 에 전환했다. 옛 형식(template.deploy-result)은 지웠다.
+#    순서를 지킨 근거: review-service#53 이 배포된 뒤에 켰다
+#    (EKS 배포본 10ba274f 에 #53 포함, behind 0 확인).
 #
-# 전환할 때 할 일 (그때 PR 하나):
-#   1. trigger.on-deployed        send: [deploy-result] → [deploy-result-deployed]
-#   2. trigger.on-health-degraded send: [deploy-result] → [deploy-result-degraded]
-#   3. Application 에 subscribe.on-sync-failed.review-api 어노테이션 추가
-#   4. template.deploy-result 삭제
+#    뒤집으면 안 되는 이유 — sync_failed 는 health 가 Healthy 일 수 있어서,
+#    health 만 보던 옛 수신 코드가 그것을 "성공" 으로 읽는다. 실패가 정상 baseline 으로 쌓인다.
 # ──────────────────────────────────────────────────────────────────────────
 apiVersion: v1
 kind: ConfigMap
@@ -42,20 +38,11 @@ data:
   # Application 이름(sample-app-aws)을 잘라 쓰지 않는 이유: 앱 이름은 deploy.yaml 의
   # metadata.name 이라 Application 이름과 어긋날 수 있다.
   # images 는 검토 서비스가 병합 SHA 와 매칭하는 키라 반드시 들어가야 한다.
-  template.deploy-result: |
-    webhook:
-      review-api:
-        method: POST
-        body: |
-          {
-            "app": "{{index .app.metadata.annotations "oneaction.crystal/app"}}",
-            "env": "{{index .app.metadata.annotations "oneaction.crystal/env"}}",
-            "health": "{{.app.status.health.status}}",
-            "images": {{toJson .app.status.summary.images}},
-            "revision": "{{.app.status.sync.revision}}"
-          }
-
-  # ── deployment.result/v1 (준비만 해둔 것) ────────────────────────────────
+  # ── deployment.result/v1 (2026-10-10 전환 완료) ──────────────────────────
+  #
+  # 옛 5필드 템플릿(template.deploy-result)은 지웠다. review-service#53 이 배포돼
+  # 수신 쪽이 이 형식을 받는다 (EKS 배포본 10ba274f 에 #53 포함, behind 0 확인).
+  # 수신 쪽은 옛 형식도 계속 받으므로 켜는 순서가 어긋나도 알림이 버려지지는 않는다.
   #
   # 🔴 세 템플릿의 본문은 event_type 한 줄만 다르고 나머지는 글자까지 같아야 한다.
   #    Notifications 에는 템플릿 include 가 없어서 베낄 수밖에 없다.
@@ -187,13 +174,13 @@ data:
   trigger.on-deployed: |
     - when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
       oncePer: app.status.operationState.syncResult.revision
-      send: [deploy-result]
+      send: [deploy-result-deployed]
 
   # 배포 실패. Healthy·Degraded 외의 상태(Progressing 등)는 보내지 않는다.
   trigger.on-health-degraded: |
     - when: app.status.health.status == 'Degraded'
       oncePer: app.status.sync.revision
-      send: [deploy-result]
+      send: [deploy-result-degraded]
 
   # 동기화 자체가 실패한 경우. health 는 Healthy 일 수 있다 — 옛 버전이 그대로 떠 있기
   # 때문이다. 그래서 health 만 보는 수신 코드에는 켜지 않는다.
