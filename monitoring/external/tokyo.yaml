@@ -1,0 +1,85 @@
+# 도쿄 GKE 의 sample-app 지표를 서울 EKS 의 Prometheus 가 직접 긁는다.
+#
+# 왜 필요한가
+#   진행 화면의 「모니터링」 버튼이 `/d/apps-sample-app?var-env={env}` 를 연다.
+#   그런데 대시보드의 env 변수는 `label_values(http_requests_total{app="sample-app"}, env)`
+#   라서, Prometheus 에 그 환경의 지표가 없으면 **빈 화면**이 뜬다.
+#   10/11 새벽까지 env 라벨 값은 `aws` 하나뿐이었다 — Prometheus 가 서울에만 있어서다.
+#
+# 왜 이렇게 푸는가 (다른 방안을 버린 이유)
+#   ① GKE 에 Prometheus 설치 + remote-write  →  서울 Prometheus 에 수신을 켜야 하고
+#      그건 Prometheus CR 변경이라 **파드가 재시작된다. 거기에 카나리 자동 중단 판정이
+#      걸려 있다.** 데모 당일에 건드릴 곳이 아니다
+#   ② Grafana 에 두 번째 데이터소스 추가      →  Grafana 가 EKS 안에서 질의하므로
+#      GKE 안의 Prometheus(ClusterIP)에 닿지 못한다. 또 공개 경로를 뚫어야 한다
+#   ③ 여기서 쓴 방법 — **EKS Prometheus 가 도쿄 공개 주소를 그냥 긁는다**
+#      10/11 에 박찬건님이 active Service 에 외부 LB 를 붙여(gitops#68) 가능해졌다.
+#      GKE 쪽에 아무것도 설치하지 않고, 서울 Prometheus 설정(CR)도 건드리지 않는다
+#
+# 🔴 재시작이 없는 이유
+#   Prometheus CR 이 `serviceMonitorSelector: {}` · `serviceMonitorNamespaceSelector: {}` 라
+#   **라벨 없이 어느 네임스페이스의 ServiceMonitor 든 집어간다** (실제 CR 확인함).
+#   그래서 CR 을 고칠 필요가 없고, 오퍼레이터가 설정만 다시 읽는다(hot reload).
+#   파드는 죽지 않으므로 카나리 판정에 영향이 없다.
+#
+# 라벨은 앱이 직접 붙여서 보낸다
+#   http_requests_total{...,app="sample-app",env="gcp"}
+#   target 라벨로 env 를 덮어쓰지 않는다. 덮어쓰면 충돌해서 `exported_env` 로 밀린다.
+#
+# ⚠️ 부산 로컬은 이 방법으로 안 된다. `localhost:8081` 은 노트북 안이라
+#   EKS 에서 들어올 길이 없다(NAT). 부산까지 하려면 ①번 방법뿐이고 재시작이 따른다.
+---
+# 셀렉터가 없는 Service. 고를 파드가 없으니 Endpoints 를 손으로 채운다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-tokyo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: sample-app-tokyo
+spec:
+  type: ClusterIP
+  # selector 를 일부러 비웠다. 이 클러스터에 도쿄 파드가 없다.
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+# 도쿄 active Service 의 외부 LB 주소. gitops#68 로 생겼다.
+#
+# ⚠️ `v1 Endpoints is deprecated in v1.33+` 경고가 뜨지만 **이게 맞는 객체다.**
+# Prometheus CR 의 serviceDiscoveryRole 이 비어 있어 기본값 Endpoints 로 찾는다.
+# EndpointSlice 로만 만들면 지금 설정에서는 타깃이 안 잡힌다.
+# ⚠️ 주소가 바뀌면 여기도 같이 고쳐야 한다. GKE LB 는 재생성하면 IP 가 바뀐다.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: sample-app-tokyo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: sample-app-tokyo
+subsets:
+  - addresses:
+      - ip: 34.85.123.113
+    ports:
+      - name: http
+        port: 80
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-app-tokyo
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sample-app-tokyo
+  namespaceSelector:
+    matchNames: [monitoring]
+  endpoints:
+    - port: http
+      path: /metrics
+      # 서울 sample-app 은 카나리 판정 때문에 5초인데, 도쿄는 판정에 안 쓰이고
+      # 공개 인터넷을 건너가므로 기본 30초로 둔다.
+      interval: 30s
+      scrapeTimeout: 10s
