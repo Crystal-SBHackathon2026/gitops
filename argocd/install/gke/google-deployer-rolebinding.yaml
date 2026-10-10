@@ -1,0 +1,14 @@
+# EKS WIF -> Google SA 인증용. 기존 Kubernetes SA RoleBinding과 분리한다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-google-deployer
+  namespace: sample-app
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-deployer
+subjects:
+  - kind: User
+    apiGroup: rbac.authorization.k8s.io
+    name: argocd-tokyo-deployer@crystal-sbh2026-gcp-1009.iam.gserviceaccount.com

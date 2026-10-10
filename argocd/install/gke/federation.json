@@ -1,0 +1,14 @@
+{
+  "projectNumber": "19323760731",
+  "poolId": "crystal-eks",
+  "providerId": "oneaction",
+  "serviceAccountId": "argocd-tokyo-deployer",
+  "serviceAccountEmail": "argocd-tokyo-deployer@crystal-sbh2026-gcp-1009.iam.gserviceaccount.com",
+  "issuer": "https://oidc.eks.ap-northeast-2.amazonaws.com/id/4FAF03630E57E0F50DBEF31F78461274",
+  "attributeMapping": {"google.subject": "assertion.sub"},
+  "subjects": [
+    "system:serviceaccount:argocd:argocd-application-controller",
+    "system:serviceaccount:argocd:argocd-server"
+  ],
+  "eksEgressCidr": "43.200.199.19/32"
+}

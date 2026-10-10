@@ -9,7 +9,9 @@ Argo CD가 바라보는 배포 설정 레포입니다. 앱 레포의 CI가 이�
 
 ```
 apps/sample-app/
-  base/                      공통 Rollout·Service·AnalysisTemplate (이미지 태그는 CI가 갱신)
+  base/                      공통 Rollout·Service (이미지 태그는 CI가 갱신)
+  analysis/default/          응답 분석 (로컬·GCP Application의 두 번째 source)
+  analysis/prometheus/       응답·Prometheus 에러율 분석 (AWS의 두 번째 source)
   overlays/local/            부산 로컬 (k3s)
   overlays/aws/              서울 (EKS, ap-northeast-2)
   overlays/gcp/              도쿄 (GKE, asia-northeast1)
@@ -20,7 +22,7 @@ argocd/                      클러스터별 Argo CD Application
   notifications/             배포 결과를 검토 서비스로 보내는 설정
 ```
 
-렌더링 확인: `kubectl kustomize apps/sample-app/overlays/aws`
+렌더링 확인: overlay와 해당 Application의 두 번째 `analysis/` source를 각각 `kubectl kustomize`로 확인합니다. overlay만 렌더링하면 AnalysisTemplate이 포함되지 않습니다.
 
 ## 누가 이 레포에 커밋하나
 
@@ -38,17 +40,15 @@ argocd/                      클러스터별 Argo CD Application
 
 ```
 새 이미지 → 50% (복제본이 3개면 새 버전 2개 + 옛 버전 1개)
-         → 약 60초 동안 두 가지 확인
-              ① 앱이 제대로 응답하는지   (api-ok)      10초마다 6번
-              ② 카나리 파드의 5xx 비율   (error-rate)  20초 뒤부터 10초마다 4번
-         → 둘 다 멀쩡하면 100%, 하나라도 틀리면 중단하고 되돌림
+         → 약 60초 동안 앱 응답 확인 (api-ok, 10초마다 6번)
+         → 통과하면 100%, 실패하면 중단하고 되돌림
 ```
 
-`error-rate` 가 20초 늦게 시작하는 이유는 아래 "20초는 재지 못한다" 를 보세요.
+2026-10-10 [PR #45](https://github.com/Crystal-SBHackathon2026/gitops/pull/45)에서 분석을 분리했습니다. AWS 카나리는 `analysis/prometheus`의 `api-ok`·`error-rate`, 로컬 카나리는 `analysis/default`의 `api-ok`를 사용합니다. [PR #48](https://github.com/Crystal-SBHackathon2026/gitops/pull/48)의 GCP 데모 overlay는 블루그린이며 현재 전환 전후 Analysis를 실행하지 않습니다. GCP Application도 `analysis/default`를 배포하지만 템플릿 존재만으로 분석 실행을 검증했다고 판단하지 않습니다.
 
-단계는 `apps/sample-app/base/rollout.yaml`, 확인 기준은 `base/analysistemplate.yaml` 에 있습니다. 명세의 `rollout.strategy` 가 `canary` 면 이 설정을 그대로 쓰고, `bluegreen` 이면 렌더러가 전략을 통째로 바꿉니다.
+공통 카나리 단계는 `apps/sample-app/base/rollout.yaml`, 확인 기준은 `analysis/default`·`analysis/prometheus`에 있습니다. 명세의 `rollout.strategy`가 `canary`면 공통 전략을 쓰고, `bluegreen`이면 렌더러가 전략을 바꿉니다. 현재 GCP 데모 overlay는 수동 블루그린 구성입니다.
 
-지표가 둘인 이유는 각자 못 보는 게 있기 때문입니다.
+당시 두 지표를 함께 둔 이유는 각자 못 보는 게 있기 때문입니다.
 
 | | 잡는 것 | 못 잡는 것 |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ argocd/                      클러스터별 Argo CD Application
 
 `error-rate` 는 `rollouts_pod_template_hash` 로 **카나리 파드만** 골라서 잽니다. 카나리 중에는 새 파드와 옛 파드가 같은 Service 뒤에 함께 있어서, 이 라벨이 없으면 지표가 섞여 "새 버전만 에러가 난다" 가 희석됩니다.
 
-#### 🔴 `error-rate` 는 트래픽이 있어야 의미가 있습니다
+#### 에러율 분석의 트래픽 조건 — AWS
 
 `/healthz` 를 일부러 뺐습니다. readiness·liveness 가 5초·10초마다 때리므로 섞으면 사용자 요청의 실패가 묻힙니다. 실측하니 전체 0.87 req/s 가 전부 헬스체크였고 사용자 요청은 0 req/s 였습니다.
 
@@ -71,7 +71,7 @@ end=$((SECONDS+90)); while [ $SECONDS -lt $end ]; do curl -s -o /dev/null "http:
 
 트래픽이 없을 때는 **배포를 막지 않습니다**(측정값 0 으로 통과). 아무도 안 쓰는 앱의 배포를 세워두는 것보다 낫다고 봤습니다.
 
-#### `error-rate` 는 처음 20초를 재지 못합니다
+#### 에러율 분석의 초기 측정 지연 — AWS
 
 `rate` 는 창 안에 표본이 **2개 이상** 있어야 값을 냅니다. 10초마다 긁으니 갓 뜬 카나리 파드는 **20초**가 지나야 측정이 됩니다. 그 전 측정은 `clamp_min` 덕에 `0` 으로 통과하므로 **실패를 놓칩니다.**
 
@@ -84,15 +84,15 @@ end=$((SECONDS+90)); while [ $SECONDS -lt $end ]; do curl -s -o /dev/null "http:
 측정 4 (t=30s)   [0.293]    → 2번째 Failed → 중단
 ```
 
-그래서 `initialDelay: 20s` 를 두고 `count` 를 6 → 4 로 줄였습니다. 분석 전체 길이는 약 60초 그대로이고(그 길이는 `api-ok` 가 정합니다), 같은 장애라면 측정 1·2 에서 바로 걸려 **20초 빨리** 중단됩니다.
+PR #41에서 `initialDelay: 20s`를 두고 `count`를 6 → 4로 줄였습니다. 분석 전체 길이는 약 60초 그대로였고(그 길이는 `api-ok`가 정합니다), 초기 측정의 빈 구간을 피하려는 보완이었습니다. PR #42에서 공통 지표를 제거한 뒤 #45에서 AWS 전용 분석으로 복원했습니다.
 
 같은 실험에서 `api-ok` 는 **6회 전부 통과**했습니다. 한 번에 한 요청만 보내므로 30% 확률의 실패로는 중단 조건(3번 연속 Error)에 닿지 않습니다. 지표를 둘 둔 이유가 그것입니다.
 
-#### 로컬에는 Prometheus 가 없습니다
+#### Prometheus 가 없는 환경의 오류와 조치
 
-`base` 를 두 환경이 공유하므로 `error-rate` 는 로컬 k3s 에서 매번 `Error` 가 됩니다. 그래서 `consecutiveErrorLimit` 을 `count` 와 같게 둬서 **오류로는 절대 중단되지 않게** 했습니다.
+공통 `error-rate` 는 Prometheus 접근이 필요합니다. 2026-10-09 GKE Rollouts v1.10.0에서 이 지표만 실행한 결과, `count=6`, `consecutiveErrorLimit=6`이어도 DNS 오류가 7회 누적되어 AnalysisRun이 `Error`로 종료됐습니다. 두 값을 같게 두는 것으로 측정 오류를 무시할 수 없습니다.
 
-Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 합니다. 그때의 안전망은 `api-ok` 입니다. 환경별로 다르게 하려면 `base` 를 분리해야 하는데, 지금 필요한 변경이 아닙니다.
+성진님이 로컬의 동일 오류와 PR #42 적용 후 abort 해제를 보고했습니다. 현재 #45에서는 AWS에만 Prometheus 지표를 두므로 GCP에 Prometheus를 추가 설치하지 않습니다. GCP 앱 배포·후속 블루그린 전환 성공은 별도로 검증해야 합니다. [GKE 검증 기록](docs/gcp-gke-verification-2026-10-09.md)을 참고하세요. 공통 카나리·블루그린 구현은 성진님의 변경을 재사용합니다.
 
 ### 헬스체크 실패 시 자동 롤백
 
@@ -100,7 +100,7 @@ Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 합�
 
 ### 명세에 없는 리소스는 지워진다
 
-`overlays/<env>/` 는 **생성물**입니다. `commit_overlay` 가 명세로 다시 만들면서, 이전에 있었는데 새 명세에 없는 파일은 지웁니다. 남겨두면 kustomize가 없는 리소스를 참조하기 때문입니다.
+`commit_overlay`가 갱신하는 `overlays/<env>/`는 **생성물**입니다. 명세로 다시 만들면서, 이전에 있었는데 새 명세에 없는 파일은 지웁니다. 남겨두면 kustomize가 없는 리소스를 참조하기 때문입니다. 현재 GCP 블루그린 데모처럼 수동 구성한 overlay도 있어, 후속 명세의 대상 환경과 렌더러 출력을 확인한 뒤 갱신해야 합니다.
 
 > ⚠️ 2026-10-09에 이것 때문에 장애가 있었습니다. 명세가 없는 PR에서 축소된 명세가 자동 생성·병합되어 `ingress.yaml` 이 지워지고, Argo CD prune → ALB까지 삭제됐습니다. 지금은 **기존 overlay의 Ingress가 사라지는 변경을 `commit_overlay` 가 `blocked` 로 막습니다.**
 
@@ -110,14 +110,16 @@ Prometheus 가 꺼져 있어도 배포를 막지 않는다는 뜻이기도 합�
 
 배포 결과를 검토 서비스로 보내는 설정은 [argocd/notifications/README.md](argocd/notifications/README.md)에 있습니다.
 
+생성된 도쿄 GKE의 Rollouts·배포 RBAC와 중앙 EKS 등록 절차는 [GKE 연결 문서](argocd/install/gke/README.md)를 따릅니다. 설치 완료와 실제 앱·알림 연결 완료를 구분합니다.
+
 ## Application 목적지
 
-| 파일 | `destination.server` | 상태 |
+| 파일 | 목적지 | 상태 |
 | --- | --- | --- |
 | `sample-app-aws.yaml` | `https://kubernetes.default.svc` | 적용됨. Argo CD가 EKS 안에 있어 in-cluster가 맞습니다 |
 | `review-service-aws.yaml` | `https://kubernetes.default.svc` | 적용됨 |
-| `sample-app-local.yaml` | `LOCAL_K3S_API_SERVER` | **아직 적용하지 않습니다** |
-| `sample-app-gcp.yaml` | `GCP_GKE_API_SERVER` | **아직 적용하지 않습니다** |
+| `sample-app-local.yaml` | `name: crystal-busan` | 로컬 자체 Argo CD에 등록해 사용합니다. [로컬 절차](argocd/install/README.md#로컬부산-k3s-환경) |
+| `sample-app-gcp.yaml` | `name: tokyo-gke` | GKE 기반은 직접 검증했고 중앙 EKS 등록은 담당자가 검증했습니다. PR #51은 머지됐으며 실제 Application 적용·앱 배포 검증이 남았습니다 |
 
 **운영 모델에 따라 `local`·`gcp` 의 값이 달라집니다.**
 
@@ -140,9 +142,8 @@ kubectl create namespace argo-rollouts
 kubectl apply -n argo-rollouts --server-side \
   -f https://github.com/argoproj/argo-rollouts/releases/download/v1.10.0/install.yaml
 
-# 목적지를 이 클러스터로 바꿔서 적용한다 (레포의 플레이스홀더는 그대로 둔다)
-sed 's|LOCAL_K3S_API_SERVER|https://kubernetes.default.svc|' argocd/sample-app-local.yaml \
-  | kubectl apply -f -
+# argocd/install/README.md의 로컬 절차로 이 Argo CD에 crystal-busan을 먼저 등록한다.
+kubectl apply -f argocd/sample-app-local.yaml
 ```
 
 접속: http://localhost:8081
@@ -151,6 +152,6 @@ sed 's|LOCAL_K3S_API_SERVER|https://kubernetes.default.svc|' argocd/sample-app-l
 
 Windows에서 kubectl 연결이 안 되면: `kubectl config set-cluster k3d-crystal-busan --server=https://127.0.0.1:<포트>`
 
-**카나리 분석이 로컬에서도 돌려면** 그 클러스터에 Argo Rollouts가 설치돼 있어야 합니다. `AnalysisTemplate` 은 `base` 에 있어 overlay를 쓰면 자동으로 따라갑니다.
+**카나리 분석이 로컬에서도 돌려면** 그 클러스터에 Argo Rollouts가 설치돼 있어야 합니다. `AnalysisTemplate`은 Application의 두 번째 source인 `analysis/default`에서 함께 배포합니다.
 
-로컬에는 `monitoring` 네임스페이스가 없어서 `error-rate` 지표가 매번 `Error` 가 됩니다. 중단되지는 않습니다 — 위 "로컬에는 Prometheus 가 없습니다" 참고.
+로컬은 `api-ok`만 사용하는 `analysis/default`를 선택합니다. Prometheus가 없는 환경에서 AWS의 `analysis/prometheus`를 선택하면 분석이 실패할 수 있습니다.
