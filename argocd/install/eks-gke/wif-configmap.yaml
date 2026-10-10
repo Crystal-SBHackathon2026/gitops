@@ -1,0 +1,50 @@
+# Public configuration; no runtime token or private key is stored here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tokyo-gke-wif
+  namespace: argocd
+data:
+  credential-configuration.json: |
+    {
+      "type": "external_account",
+      "audience": "//iam.googleapis.com/projects/19323760731/locations/global/workloadIdentityPools/crystal-eks/providers/oneaction",
+      "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+      "token_url": "https://sts.googleapis.com/v1/token",
+      "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/argocd-tokyo-deployer@crystal-sbh2026-gcp-1009.iam.gserviceaccount.com:generateAccessToken",
+      "service_account_impersonation": {
+        "token_lifetime_seconds": 3600
+      },
+      "credential_source": {
+        "file": "/var/run/crystal-gcp-wif/token",
+        "format": {
+          "type": "text"
+        }
+      }
+    }
+  gke-ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIELTCCApWgAwIBAgIRAN4fON0mXBRl4X9ypijPbh0wDQYJKoZIhvcNAQELBQAw
+    LzEtMCsGA1UEAxMkNzQxNjA5ZWMtMTE2YS00MTE5LWJhMzAtODE3ZTE4ODdkZWM4
+    MCAXDTI2MTAwOTA5MDQwNloYDzIwNTYxMDAxMTAwNDA2WjAvMS0wKwYDVQQDEyQ3
+    NDE2MDllYy0xMTZhLTQxMTktYmEzMC04MTdlMTg4N2RlYzgwggGiMA0GCSqGSIb3
+    DQEBAQUAA4IBjwAwggGKAoIBgQCXOnOTVRf7ncr7VfeYTRDCXE9KswotnNaigyZZ
+    gL2b2iA/4v4jB3WTo2ei0UYiRVwrYYxmqiN6AZJvCom9YwPYAL5MHTLfFZy16cAG
+    JTCMlOuq8UmJOvcB07D5XgkYgfBC/IwFk3VvzHNEuGJrMFkhSBau+1OkJxdy1pBA
+    VpZpg7AGS5Nf6Ij+k2b19dQjk1ZFiyctQ3NK8P0u3cUh/BHVZTsL3ct0lpPOG2Iw
+    yKWPpBYbyVf1lA7CP/j/ZluT/wz3RXz7Yo55pvLruagYf0CHaV/+neJ2Hh2M4jGg
+    zbVKS0MDVcCUXodnpWrUZNtxj7zI7y/QJAew+8uUiquf6jcFI2ebv3eEr2D0U36F
+    GpT+nQS71WVYxLocZrLnGSG5T1qiWNxCLw3u+3QnEEvYzStfLBbzb5GKX8l3owYv
+    qg1hTbbie1B9gsONE221nTVx1ZUTjvUJG0ZjFFfoeDNBM2M1lgdLn5t7uGNMQ63J
+    /fLEC8JxHGfc1TIpQgrzx2NqE4sCAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgIEMA8G
+    A1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFJEHxRZxWRMpX8ed/3XFWJ5cAUNfMA0G
+    CSqGSIb3DQEBCwUAA4IBgQBg2CiA4/yZrPTM6td0i8jv1affMj6EsFddFyc0jgpD
+    WbNZPDUwk6JqTUH3EUlhOdkPQPEOtNxockWvkxAN7JOGpakMCBZAf4vnW7MB3ojk
+    B23Nl0BHcTjrraey/GfwRnGBOXJxUKVpTk2WYwt2s4wEM1562B7QYVgpiIeowECI
+    zqyGJ5mRDRiuqp1aipzCqa/FuYOiwylnnnCQK2y8+bhniGvUSPW+AwW+49LwABm5
+    a5zcgZBe+iyNPm+4R1Hxi123ucqlFpevTsbxAVRsPwqgK2l8fP86KQ+o6FjwMPxZ
+    16woN2ysnU5gd2A4KQJcRhBDqfyY0j7Hy0DpWxnRdXBS3OR6UPrWwUYlxyQw4OUE
+    fyYdUHst1l8hjKgfSQrkCWYO99wCaCtD0bqWrLlde9ch6d7xfP+ctex/kXiJy2WG
+    tJi9CWJ2rpmPKybeQ0eputwN7kpEVQesBx2Ib/ne0vNA4erM99orFtYtJolueJ6o
+    DWutnHE2YZb+qwYT4R5pHd0=
+    -----END CERTIFICATE-----

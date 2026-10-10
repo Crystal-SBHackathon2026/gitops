@@ -1,0 +1,28 @@
+{
+  "project": "crystal-sbh2026-gcp-1009",
+  "zone": "asia-northeast1-a",
+  "cluster": "tokyo-gke",
+  "server": "https://34.146.143.116",
+  "kubeSystemUidExpected": "c249c507-6262-4b06-be44-ab019fa3256a",
+  "caSha256Der": "edc9b0643f0456a2e6e9cba6bb91a223acb0b6acca681e880cb7ea4f351b6a42",
+  "clusterSecret": "cluster-tokyo-gke",
+  "namespaces": [
+    "sample-app"
+  ],
+  "clusterResources": false,
+  "gkeOperatingPrincipal": "argocd-tokyo-deployer@crystal-sbh2026-gcp-1009.iam.gserviceaccount.com",
+  "eksSubjects": [
+    "system:serviceaccount:argocd:argocd-application-controller",
+    "system:serviceaccount:argocd:argocd-server"
+  ],
+  "issuer": "https://oidc.eks.ap-northeast-2.amazonaws.com/id/4FAF03630E57E0F50DBEF31F78461274",
+  "measuredControllerAndServerEgressCidr": "43.200.199.19/32",
+  "providerResource": "projects/19323760731/locations/global/workloadIdentityPools/crystal-eks/providers/oneaction",
+  "projectedTokenAudience": "https://iam.googleapis.com/projects/19323760731/locations/global/workloadIdentityPools/crystal-eks/providers/oneaction",
+  "projectedTokenRequestedLifetimeSeconds": 3600,
+  "googleAccessTokenLifetimeSeconds": 3600,
+  "eksClusterArn": "arn:aws:eks:ap-northeast-2:236550433066:cluster/oneaction",
+  "eksApiServer": "https://4FAF03630E57E0F50DBEF31F78461274.gr7.ap-northeast-2.eks.amazonaws.com",
+  "gkeServiceAccountUidExpected": "b00980c6-fde1-4178-9c27-22350d595c81",
+  "argoCdVersion": "v3.5.4"
+}
