@@ -1,0 +1,29 @@
+# 다른 클러스터 지표 수집 Application (서울 EKS).
+#
+# 지금은 도쿄 GKE 하나다. 부산 로컬은 노트북이 NAT 뒤에 있어 이 방법을 못 쓴다.
+#
+# 🔴 argocd/ 아래 파일은 Argo CD 가 스스로 읽지 않는다. 머지해도 반영되지 않는다.
+#   kubectl apply -f argocd/monitoring-external-aws.yaml
+#
+# 끄는 법 (되돌리기)
+#   kubectl -n argocd delete application monitoring-external-aws
+# prune: true 라 Service·Endpoints·ServiceMonitor 가 같이 사라지고,
+# 오퍼레이터가 설정을 다시 읽어 수집 대상에서 빠진다. 파드 재시작은 없다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-external-aws
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Crystal-SBHackathon2026/gitops.git
+    targetRevision: main
+    path: monitoring/external
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
