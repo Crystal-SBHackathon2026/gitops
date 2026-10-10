@@ -35,7 +35,9 @@ Google 계정 26개 검사와 기존 Kubernetes SA 11개 회귀 검사를 모두
 
 처음 운영자는 서비스 계정의 getAccessToken 권한이 없어 Google API HTTP 403이었어요. 임시 권한 부여 후 정책 반영을 기다려 발급이 성공했어요. 이후 `cloud-platform`만 포함한 토큰은 GKE에서 숫자 uniqueID로 식별돼 이메일 RoleBinding 검사에 HTTP 403이었어요. `userinfo.email`을 함께 요청한 토큰은 HTTP 200이며 26개 검사를 통과했어요. [GKE 인증 문서](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/api-server-authentication#authenticate_users)와 [Argo CD v3.5.4 소스](https://github.com/argoproj/argo-cd/blob/v3.5.4/cmd/argocd-k8s-auth/commands/gcp.go)가 같은 scope 조건을 설명해요.
 
-## 남은 검증과 인계
+## 오전 검사 당시 남은 검증과 인계
+
+아래는 10:32 KST 당시 기록이에요. 이후 #45 머지·#48 블루그린·EKS 실제 등록/만료 후 재발급·#51과 최신 GCP 검사는 [오후 연결 검증 기록](gcp-integration-verification-2026-10-10.md)에 구분해요. 오전의 26/11개 결과와 허용 목록을 현재 값으로 덮어쓰지 않아요.
 
 - 이 결과의 credential source는 **운영자 impersonation**이에요. EKS projected JWT → STS → Google impersonation·3600초 만료/갱신은 EKS 담당의 실제 Pod에서 별도로 검증해야 해요. 토큰·키·개인 credential은 전달하지 않아요.
 - EKS에서 API TLS/인증·동일 SA UID·허용/거부·갱신을 확인하고 `tokyo-gke`, namespaces=`sample-app`, clusterResources=false로 등록해요. Controller/server mount 적용 시점은 중앙 Argo CD 담당과 맞춰요.

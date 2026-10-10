@@ -30,7 +30,8 @@ def kubectl(kubeconfig, *arguments):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kubeconfig", required=True)
-    parser.add_argument("--rendered-overlay")
+    parser.add_argument("--rendered-overlay", "--rendered-manifests", dest="rendered_overlay",
+                        help="Combined Kustomize output from every Application source, including analysis/default")
     parser.add_argument("--google-service-account", help="Verify using a Google service account; operator needs scoped getAccessToken permission")
     parser.add_argument("--output", required=True)
     options = parser.parse_args()
@@ -39,7 +40,7 @@ def main():
     cluster = config["clusters"][0]["cluster"]
     if cluster["server"].rstrip("/") != target["server"]:
         raise RuntimeError("GKE API address mismatch")
-    uid = kubectl(options.kubeconfig, "get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}")
+    uid = json.loads(kubectl(options.kubeconfig, "get", "--raw", "/api/v1/namespaces/kube-system"))["metadata"]["uid"]
     if uid != target["kubeSystemUid"]:
         raise RuntimeError("GKE UID mismatch")
     deployment = json.loads(kubectl(options.kubeconfig, "get", "deployment", "argo-rollouts", "-n", "argo-rollouts", "-o", "json"))
@@ -153,6 +154,7 @@ def main():
                 raise RuntimeError(f"Unexpected permission: {verb} {resource}")
             results[-1].update(allowed=review["status"].get("allowed", False), expectedAllowed=allowed)
 
+    rendered_resources = []
     if options.rendered_overlay:
         import yaml
         resources = {
@@ -160,15 +162,26 @@ def main():
             ("argoproj.io/v1alpha1", "Rollout"): "/apis/argoproj.io/v1alpha1/namespaces/sample-app/rollouts",
             ("argoproj.io/v1alpha1", "AnalysisTemplate"): "/apis/argoproj.io/v1alpha1/namespaces/sample-app/analysistemplates",
         }
-        documents = list(yaml.safe_load_all(Path(options.rendered_overlay).read_text(encoding="utf-8")))
-        if len(documents) != 3:
-            raise RuntimeError("Expected the current DB-free GCP overlay's three resources")
+        documents = [d for d in yaml.safe_load_all(Path(options.rendered_overlay).read_text(encoding="utf-8")) if d]
+        identities = [(d["apiVersion"], d["kind"], d["metadata"]["name"]) for d in documents]
+        if len(identities) != len(set(identities)):
+            raise RuntimeError("Duplicate resources in combined Application sources")
+        services = {d["metadata"]["name"] for d in documents if d["kind"] == "Service"}
+        rollouts = [d for d in documents if d["kind"] == "Rollout"]
+        analyses = [d for d in documents if d["kind"] == "AnalysisTemplate"]
+        if len(rollouts) != 1 or len(analyses) != 1 or len(services) not in (1, 2) or len(documents) != len(services) + 2:
+            raise RuntimeError("Expected DB-free GCP Service(s), one Rollout and one AnalysisTemplate")
+        blue_green = rollouts[0]["spec"]["strategy"].get("blueGreen")
+        if blue_green and services != {blue_green["activeService"], blue_green["previewService"]}:
+            raise RuntimeError("BlueGreen active/preview Service references do not match combined manifests")
         for document in documents:
             key = (document["apiVersion"], document["kind"])
             if key not in resources or document["metadata"].get("namespace") != "sample-app":
                 raise RuntimeError("Unexpected overlay resource or namespace")
+            original_name = document["metadata"]["name"]
+            rendered_resources.append({"apiVersion": key[0], "kind": key[1], "name": original_name, "namespace": "sample-app"})
             document["metadata"]["name"] += "-rbac-check"
-            request("server dry-run create " + key[1], "POST", resources[key] + "?dryRun=All", 201, document)
+            request("server dry-run create " + key[1] + "/" + original_name, "POST", resources[key] + "?dryRun=All", 201, document)
 
     # Credential material and API response bodies are deliberately excluded.
     report = {
@@ -180,6 +193,7 @@ def main():
         "credentialSource": credential_source,
         "temporaryTokenExpiresAtUtc": expires_at,
         "checks": results,
+        "renderedResources": rendered_resources,
         "appResourcesCreated": False,
         "eksRegistrationVerified": False,
         "eksWifExchangeVerified": False,

@@ -17,14 +17,14 @@
 
 ## Application과 알림 계약
 
-작업 중인 `argocd/sample-app-gcp.yaml`에 `oneaction.crystal/app: sample-app`, `oneaction.crystal/env: gcp`와 기존 성공/Degraded 구독을 함께 준비했어요. destination은 `name: tokyo-gke`, namespace는 `sample-app`, `CreateNamespace=false`예요. 아직 중앙 EKS에 적용하지 않았어요.
+성진님의 [PR #51](https://github.com/Crystal-SBHackathon2026/gitops/pull/51)이 `argocd/sample-app-gcp.yaml`에 app=sample-app/env=gcp와 성공·Degraded·sync_failed 구독을 준비했어요. destination은 `name: tokyo-gke`, namespace는 `sample-app`, `CreateNamespace=false`이고 overlay + `analysis/default` 두 source를 유지해요. #37의 중복 Application 변경은 제외했어요. 아직 실제 Application 적용·앱 배포는 검증하지 않았어요.
 
-연재님은 env가 `aws/gcp/local`이어야 하며 annotation 누락 시 웹훅이 HTTP 422로 거부된다고 확인했어요. 새 실패 웹훅 [PR #38](https://github.com/Crystal-SBHackathon2026/gitops/pull/38)은 아직 OPEN이고 수신 코드 PR·혜연님 리뷰·배포 → 성진님 트리거/구독 전환 → 성공·Degraded·sync_failed 실연결 검증 순서로 진행해요. 기존 5필드 형식 수신 유지 보고와 실제 GCP 수신 검증은 구분해요.
+연재님은 env가 `aws/gcp/local`이어야 하며 annotation 누락 시 웹훅이 HTTP 422로 거부된다고 확인했어요. 수신 코드 review-service #53과 gitops #38은 머지됐고, 성진님의 #49·#50이 트리거 활성화와 다중 source revision/oncePer 수정을 반영했어요. GCP는 중앙 EKS Notifications의 기존 내부 Review API 경로를 재사용해요. 로컬 외부 수신 경로 #19와 별개이며 실제 GCP 알림·baseline 확인은 남아 있어요.
 
-## 현재 카나리와 다음 검증
+## 현재 배포 전략과 다음 검증
 
-[PR #42](https://github.com/Crystal-SBHackathon2026/gitops/pull/42) 이후 공통 분석은 `api-ok`만 사용해요. GKE에 Prometheus를 새로 설치하지 않아요. 환경별 부분 에러율 분석 복원은 렌더러가 실제 측정 백엔드 능력에 맞는 템플릿과 Rollout 참조를 함께 선택하는 방식 등을 성진님·연재님과 별도로 합의해요.
+[PR #45](https://github.com/Crystal-SBHackathon2026/gitops/pull/45)는 AWS에 `analysis/prometheus`, 로컬·GCP에 `analysis/default`를 선택해요. [PR #48](https://github.com/Crystal-SBHackathon2026/gitops/pull/48)의 GCP 데모 overlay는 블루그린이고 active/preview Service 두 개를 사용해요. 현재 전환 전후 Analysis는 없고 readiness·progressDeadlineSeconds=60 조건을 사용해요. AnalysisTemplate 배포와 분석 실행은 구분하고 GKE Prometheus는 설치하지 않아요.
 
 2026-10-10 중앙 EKS 실측 egress `43.200.199.19/32`를 GKE API에 허용하고, EKS OIDC의 Controller/server subject 두 개만 허용하는 Google WIF·전용 Google 서비스 계정 IAM·namespace RoleBinding을 준비했어요. 실제 Google 계정 RBAC 26개 검사와 기존 Kubernetes SA 회귀 11개를 통과했어요. 이 인증은 **클러스터 운영 연결용**이며 앱 Secret 공급이 구성됐다는 뜻은 아니에요.
 
-다음은 EKS 담당의 실제 WIF 교환·토큰 갱신·GKE 등록 검증이에요. 성진님의 [PR #45](https://github.com/Crystal-SBHackathon2026/gitops/pull/45)는 확인 시 OPEN이고 환경별 분석을 Application 두 소스로 선택하는 구현이에요. 머지 후 GCP는 `analysis/default`를 재사용하고 첫 DB 없는 앱의 내부 응답·환경·버전을 확인해요. 공개 Ingress는 연재님 PR과 출력/RBAC를 검토한 뒤 LB·NEG·health check·주소·TLS 조건을 실제 검증해요. [EKS 연결 인계](gcp-eks-registration-request.md), [WIF 검증 기록](gcp-wif-verification-2026-10-10.md), [기존 GKE 검증 기록](gcp-gke-verification-2026-10-09.md)을 참고해요.
+EKS 담당은 실제 Controller/server의 WIF 교환·TLS·동일 SA UID·제한된 권한·클러스터 등록과 만료 후 재발급 성공을 인계했어요. 앱 트래픽의 client-go 자동 갱신은 미검증이에요. #51은 18:39:38 KST 머지됐고, 다음은 성진님의 Application 적용과 GCP 담당의 첫 DB 없는 앱 내부 응답·환경·버전/알림/baseline 확인이에요. 공개 Ingress는 연재님 출력과 RBAC를 별도로 검토한 뒤 LB·NEG·health check·주소·TLS 조건을 실제 검증해요. [최신 연결 검증](gcp-integration-verification-2026-10-10.md), [EKS 연결 인계](gcp-eks-registration-request.md), [오전 WIF 기록](gcp-wif-verification-2026-10-10.md)을 참고해요.
