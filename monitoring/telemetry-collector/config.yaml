@@ -1,0 +1,94 @@
+# EKS 메트릭 → MSK telemetry.metrics (다중 클러스터 텔레메트리 1단계). 설명은 README.md.
+#
+# 파이프라인이 둘인 이유 — Kafka 메시지 키를 클러스터 이름("aws-seoul") 그대로 쓰려고.
+#   kafka exporter 의 partition_metrics_by_resource_attributes 는 키가 resource attribute 전체의 해시라
+#   클러스터 이름이 아니고, resource 마다(job·instance) 달라진다.
+#   글자 그대로의 키는 message_key_from_metadata_key 뿐인데, 그 값은 요청 메타데이터(client.Metadata)에서 온다.
+#   메타데이터를 채우는 processor(partitioningprocessor)는 아직 릴리스에 없다 (v0.162.0 기준 contrib main 에만).
+#   그래서 ① 긁은 것을 OTLP 로 자기 자신(127.0.0.1)에게 cluster 헤더를 붙여 보내고
+#        ② OTLP receiver 가 include_metadata 로 그 헤더를 메타데이터로 받아 kafka exporter 가 키로 쓴다.
+#   127.0.0.1 에만 열어 파드 밖에서는 못 들어온다.
+#
+# ${env:CLUSTER}·${env:ENV} 는 deployment.yaml 에서 온다.
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  # 기존 Prometheus(kube-prometheus-stack, 릴리스 monitoring)의 /federate 를 읽기만 한다. 설정은 건드리지 않는다.
+  # 필요한 시계열만 (match[]). 10/10 기준 합쳐서 약 470개.
+  prometheus/federate:
+    config:
+      scrape_configs:
+        - job_name: federate-eks
+          scrape_interval: 15s
+          scrape_timeout: 10s
+          metrics_path: /federate
+          honor_labels: true  # 원래 job·instance·pod 라벨을 그대로 둔다
+          params:
+            match[]:
+              - '{__name__="http_requests_total",app="sample-app"}'
+              - '{__name__="http_request_duration_seconds_bucket",app="sample-app"}'
+              - '{__name__=~"rollout_.+",name="sample-app"}'
+              - '{__name__="argocd_app_info"}'
+              - '{__name__=~"review_.+"}'
+          static_configs:
+            - targets: ["monitoring-kube-prometheus-prometheus.monitoring.svc:9090"]
+
+  # ② 루프백 — ①이 보낸 것만 받는다
+  otlp/loopback:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+        include_metadata: true
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  resource:
+    attributes:
+      - {key: cluster, value: "${env:CLUSTER}", action: upsert}
+      - {key: env, value: "${env:ENV}", action: upsert}
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  # ① → ② 클러스터 이름을 헤더로
+  otlp_grpc/loopback:
+    endpoint: 127.0.0.1:4317
+    tls:
+      insecure: true
+    headers:
+      cluster: "${env:CLUSTER}"
+  kafka:
+    # apps/review-service/configmap.yaml 의 KAFKA_BOOTSTRAP 과 같은 값 (MSK, PLAINTEXT 9092, 인증 없음). 바뀌면 둘 다
+    brokers:
+      - b-1.oneactionreview.lf4qfu.c4.kafka.ap-northeast-2.amazonaws.com:9092
+      - b-2.oneactionreview.lf4qfu.c4.kafka.ap-northeast-2.amazonaws.com:9092
+    client_id: telemetry-collector-aws
+    metrics:
+      topic: telemetry.metrics
+      encoding: otlp_json
+      message_key_from_metadata_key: cluster  # → 키 "aws-seoul"
+  debug:
+    verbosity: basic  # 보낸 배치마다 한 줄 (확인용)
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    metrics/scrape:
+      receivers: [prometheus/federate]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp_grpc/loopback]
+    # batch 를 여기 두지 않는다 — batch 는 metadata_keys 없이는 메타데이터(키)를 버린다
+    metrics/kafka:
+      receivers: [otlp/loopback]
+      processors: [memory_limiter]
+      exporters: [kafka, debug]

@@ -1,0 +1,57 @@
+# OpenTelemetry Collector (contrib) 1개 — EKS 메트릭을 MSK telemetry.metrics 로. 설명은 README.md.
+# 기존 Prometheus 는 /federate 를 읽기만 한다. 이 파드가 죽거나 지워져도 Prometheus·카나리 분석과 상관없다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-collector
+  labels:
+    app: telemetry-collector
+spec:
+  replicas: 1  # 2개면 같은 메트릭을 두 번 보낸다
+  selector:
+    matchLabels:
+      app: telemetry-collector
+  template:
+    metadata:
+      labels:
+        app: telemetry-collector
+    spec:
+      automountServiceAccountToken: false  # 쿠버네티스 API 를 부르지 않는다
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: otelcol
+          # 버전 고정 — 0.162.0 (2026-09-29). message_key_from_metadata_key 가 있는 릴리스
+          image: otel/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6
+          args: ["--config=/etc/otelcol/config.yaml"]
+          env:
+            - name: CLUSTER  # resource attribute cluster 이자 Kafka 메시지 키
+              value: aws-seoul
+            - name: ENV
+              value: aws
+            - name: GOMEMLIMIT  # limits 의 80%. memory_limiter 와 함께 OOM 전에 GC 가 먼저 돈다
+              value: 100MiB
+          ports:
+            - {name: health, containerPort: 13133}
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          # 노드가 t3.medium 3대이고 메모리 limits 가 이미 130% 넘게 잡혀 있다 — 작게. 시계열 약 470개/15초
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: config, mountPath: /etc/otelcol, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: telemetry-collector
