@@ -18,7 +18,7 @@ Terraform이 관리하는 AWS 리소스(VPC, ALB, RDS 등)와는 소유 범위�
 | --- | --- | --- | --- |
 | AWS EKS | EKS 안 | `server: kubernetes.default.svc` (자기 자신) | 돌아감 |
 | 로컬 k3s | **로컬 클러스터 안** (pull) | `name: crystal-busan` | 돌아감 |
-| GCP GKE | 중앙 EKS | `name: tokyo-gke` | GKE 생성 완료. [GKE bootstrap·등록 절차](gke/README.md) 검증 후 앱 연결 |
+| GCP GKE | 중앙 EKS | `name: tokyo-gke` | GKE 준비·중앙 등록과 인증 검증 완료. [EKS 인증·등록](eks-gke/README.md)과 [GKE 준비 절차](gke/README.md)를 확인한 뒤 앱 연결 |
 
 로컬은 중앙 EKS 에서 들여다보지 않고 **스스로 이 레포를 읽습니다**. 데모 중에 Tailscale 같은 인바운드 경로를 유지하지 않아도 되는 쪽을 택했습니다.
 
@@ -27,6 +27,8 @@ Terraform이 관리하는 AWS 리소스(VPC, ALB, RDS 등)와는 소유 범위�
 ## 설치
 
 아래 공통 설치 명령은 EKS·로컬용입니다. GCP는 [GKE 전용 절차](gke/README.md)로 Rollouts·namespace·앱 RBAC만 준비하고 중앙 EKS 등록을 인계합니다.
+
+중앙 EKS의 GKE WIF ConfigMap·Controller/server 마운트·등록 Secret은 [EKS 인증·등록 절차](eks-gke/README.md)에 기록합니다. 같은 EKS에 Argo CD를 재설치하면 이 설정을 복구한 뒤 GCP Application을 연결합니다. 현재 적용 값과의 비교·서버 dry-run은 실제 적용이나 재시작 없이 진행할 수 있습니다.
 
 ```bash
 # 1. Argo CD

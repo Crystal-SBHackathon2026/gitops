@@ -1,0 +1,26 @@
+# Public configuration; no runtime token or private key is stored here.
+spec:
+  template:
+    spec:
+      containers:
+      - name: argocd-application-controller
+        volumeMounts:
+        - name: tokyo-gke-wif-token
+          mountPath: /var/run/crystal-gcp-wif
+          readOnly: true
+        - name: tokyo-gke-wif-config
+          mountPath: /etc/crystal-gcp-wif
+          readOnly: true
+      volumes:
+      - name: tokyo-gke-wif-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: https://iam.googleapis.com/projects/19323760731/locations/global/workloadIdentityPools/crystal-eks/providers/oneaction
+              expirationSeconds: 3600
+              path: token
+      - name: tokyo-gke-wif-config
+        configMap:
+          name: tokyo-gke-wif
+          defaultMode: 420

@@ -21,7 +21,7 @@ GitOps [#37](https://github.com/Crystal-SBHackathon2026/gitops/issues/37)의 GKE
 - 등록 Secret은 `argocd/cluster-tokyo-gke`, name=`tokyo-gke`, namespaces=`sample-app`, clusterResources=false, insecure=false예요. Argo CD 실제 클러스터 DB readback도 EKS 담당이 확인했어요.
 - 운영 경로는 EKS projected JWT → Google STS → 전용 Google 계정 impersonation → 공식 `argocd-k8s-auth v3.5.4 gcp`예요. 두 scope는 cloud-platform·userinfo.email이고 JWT/access token 수명은 각각 3600초예요.
 - EKS 담당은 17:42 KST 실제 최초 토큰 만료·projected JWT 교체·양쪽 Pod의 공식 exec plugin 재발급 성공을 기록했어요. **앱 트래픽에서 client-go 자동 갱신은 미검증**이에요.
-- ADC ConfigMap·projected JWT mount·등록 Secret 운영과 설치 설정으로의 영속화는 EKS 담당의 별도 검토/PR 범위예요. GCP는 EKS 리소스를 수정하지 않고 토큰·키를 전달하지 않아요.
+- ADC ConfigMap·projected JWT mount·등록 Secret 운영과 설치 설정으로의 영속화는 EKS 담당의 별도 검토/PR 범위예요. [EKS 인증·등록 정의와 복구 절차](../argocd/install/eks-gke/README.md), [EKS 실제 검증 기록](eks-gke-registration-verification-2026-10-10.md)을 참고해요. GCP는 EKS 리소스를 수정하지 않고 토큰·키를 전달하지 않아요.
 - 앱 계정에는 클러스터 전역 UID 조회 권한을 추가하지 않았어요. GCP 관리자 kube-system UID와 제한된 계정의 namespace 안 SA UID를 대조해요.
 
 ## Application 적용 인계
