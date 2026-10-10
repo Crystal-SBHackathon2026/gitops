@@ -25,4 +25,6 @@
 
 [PR #42](https://github.com/Crystal-SBHackathon2026/gitops/pull/42) 이후 공통 분석은 `api-ok`만 사용해요. GKE에 Prometheus를 새로 설치하지 않아요. 환경별 부분 에러율 분석 복원은 렌더러가 실제 측정 백엔드 능력에 맞는 템플릿과 Rollout 참조를 함께 선택하는 방식 등을 성진님·연재님과 별도로 합의해요.
 
-먼저 중앙 EKS egress·운영 인증/갱신·실제 GKE 등록을 맞추고 DB 없는 앱의 내부 응답·환경·버전을 확인해요. 공개 Ingress는 연재님 PR과 출력/RBAC를 검토한 뒤 LB·NEG·health check·주소·TLS 조건을 실제 검증해요. [EKS 연결 요청](gcp-eks-registration-request.md), [GKE 검증 기록](gcp-gke-verification-2026-10-09.md)을 참고해요.
+2026-10-10 중앙 EKS 실측 egress `43.200.199.19/32`를 GKE API에 허용하고, EKS OIDC의 Controller/server subject 두 개만 허용하는 Google WIF·전용 Google 서비스 계정 IAM·namespace RoleBinding을 준비했어요. 실제 Google 계정 RBAC 26개 검사와 기존 Kubernetes SA 회귀 11개를 통과했어요. 이 인증은 **클러스터 운영 연결용**이며 앱 Secret 공급이 구성됐다는 뜻은 아니에요.
+
+다음은 EKS 담당의 실제 WIF 교환·토큰 갱신·GKE 등록 검증이에요. 성진님의 [PR #45](https://github.com/Crystal-SBHackathon2026/gitops/pull/45)는 확인 시 OPEN이고 환경별 분석을 Application 두 소스로 선택하는 구현이에요. 머지 후 GCP는 `analysis/default`를 재사용하고 첫 DB 없는 앱의 내부 응답·환경·버전을 확인해요. 공개 Ingress는 연재님 PR과 출력/RBAC를 검토한 뒤 LB·NEG·health check·주소·TLS 조건을 실제 검증해요. [EKS 연결 인계](gcp-eks-registration-request.md), [WIF 검증 기록](gcp-wif-verification-2026-10-10.md), [기존 GKE 검증 기록](gcp-gke-verification-2026-10-09.md)을 참고해요.

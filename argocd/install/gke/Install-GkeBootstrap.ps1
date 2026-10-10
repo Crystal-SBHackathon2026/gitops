@@ -76,5 +76,6 @@ foreach ($crd in @('rollouts', 'analysistemplates', 'analysisruns', 'experiments
     Invoke-GkeKubectl -KubectlArguments @('wait', '--for=condition=Established', ('crd/' + $crd + '.argoproj.io'), '--timeout=90s')
 }
 Invoke-GkeKubectl -KubectlArguments @('apply', '--server-side', '--field-manager=crystal-gke-bootstrap', '-f', (Join-Path $PSScriptRoot 'rbac.yaml'))
+Invoke-GkeKubectl -KubectlArguments @('apply', '--server-side', '--field-manager=crystal-gke-bootstrap', '-f', (Join-Path $PSScriptRoot 'google-deployer-rolebinding.yaml'))
 Invoke-GkeKubectl -KubectlArguments @('rollout', 'status', 'deployment/argo-rollouts', '-n', 'argo-rollouts', '--timeout=180s')
 Write-Output ('Bootstrap ready on ' + $target.cluster + '. EKS registration and app sync remain separate steps.')
