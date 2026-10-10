@@ -14,6 +14,6 @@ resources:
 images:
   - name: ghcr.io/crystal-sbhackathon2026/review-api
     # review-service CI(update-gitops)가 main 커밋 SHA 로 자동 갱신한다
-    newTag: 10ba274f5246420d2d8d6bc83bf48c2e7aa194c3
+    newTag: d956b45f01366192a1d77296311a64695f90cec7
   - name: ghcr.io/crystal-sbhackathon2026/review-worker
-    newTag: 10ba274f5246420d2d8d6bc83bf48c2e7aa194c3
+    newTag: d956b45f01366192a1d77296311a64695f90cec7
