@@ -1,0 +1,35 @@
+# 카나리 분석용 부하 장치 Application (AWS).
+#
+# 🔴 알림 구독 어노테이션을 **일부러 넣지 않았다.**
+# oneaction.crystal/app·env 와 subscribe.* 를 붙이면 이 Application 이 뜨고
+# 내릴 때마다 검토 서비스로 배포 결과가 날아가고, 업무 DB 의 baseline 이
+# 부하 장치 때문에 바뀐다. 이건 앱 배포가 아니라 시험 도구다.
+#
+# 🔴 argocd/ 아래 파일은 Argo CD 가 스스로 읽지 않는다. 머지해도 반영되지 않는다.
+# 어떤 Application 의 source 도 아니기 때문이다 (Application 은 apps/ 만 본다).
+#   kubectl apply -f argocd/sample-app-loadgen-aws.yaml
+# 를 따로 해야 한다. 10/9 에 모니터링(#33)에서 이걸 빠뜨려 한참 찾았다.
+#
+# 끄는 법 (되돌리기)
+#   kubectl -n argocd delete application sample-app-loadgen-aws
+# prune: true 라 Deployment 도 같이 사라진다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-app-loadgen-aws
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Crystal-SBHackathon2026/gitops.git
+    targetRevision: main
+    path: apps/loadgen/aws
+  destination:
+    server: https://kubernetes.default.svc
+    # sample-app 과 같은 네임스페이스에 둔다. 서로 다른 Application 이라
+    # sample-app-aws 의 prune 이 이걸 지우지는 않는다 (추적 라벨이 다르다).
+    namespace: sample-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

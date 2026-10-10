@@ -1,0 +1,18 @@
+# 카나리 분석용 부하 장치 (AWS 전용).
+#
+# 🔴 overlays/ 안에 두지 않았다. overlay 는 AI 렌더러가 배포마다 다시 만드는
+# 생성물이라, 손으로 넣은 것은 다음 배포에 지워진다 (APP_VERSION 으로 겪었다).
+# 여기는 사람이 관리하는 디렉터리이고, 전용 Argo CD Application 이 가져간다
+# (argocd/sample-app-loadgen-aws.yaml).
+#
+# sample-app-aws Application 에 세 번째 소스로 붙이지 않은 이유
+#   그 Application 은 데모의 본줄기다. 다중 소스로 바꾼 뒤 알림의 revision 이
+#   비어 배포 알림이 조용히 끊긴 적이 있다 (#45 → #50). 데모 전날에 거길
+#   또 건드리지 않는다. 별도 Application 이면 지우는 것만으로 되돌릴 수 있다.
+#
+# Prometheus 가 있는 AWS 에만 둔다. 로컬·GCP 는 에러율 지표를 안 보므로 필요 없다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
