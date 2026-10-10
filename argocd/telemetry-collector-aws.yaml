@@ -1,0 +1,35 @@
+# Argo CD Application: EKS 메트릭 → MSK telemetry.metrics 수집기 (monitoring/telemetry-collector)
+#
+# 다중 클러스터 텔레메트리 1단계. EKS 만 — GKE·로컬 k3s 는 아직 없다.
+#
+# 모니터링 묶음(monitoring-aws, kube-prometheus-stack)과 **따로 둔다.** 그쪽은 건드리지 않는다
+# (서울 카나리 분석 AnalysisTemplate 이 그 Prometheus 를 본다). 이 수집기는 그 Prometheus 의
+# /federate 를 읽기만 한다.
+#
+# ⚠️ 이 파일 자체는 한 번 손으로 넣어야 한다 (app-of-apps 가 없다).
+#   kubectl apply -f argocd/telemetry-collector-aws.yaml
+# 그 뒤로는 monitoring/telemetry-collector 변경이 git 으로만 흐른다.
+#
+# 되돌리기: kubectl delete -f argocd/telemetry-collector-aws.yaml
+#   finalizer 가 있어 Deployment·ConfigMap 도 같이 지워진다. 다른 것은 남지 않는다
+#   (토픽 telemetry.metrics 는 MSK 자동 생성이라 남는다 — 지우려면 README).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: telemetry-collector-aws
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Crystal-SBHackathon2026/gitops.git
+    targetRevision: main
+    path: monitoring/telemetry-collector
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
