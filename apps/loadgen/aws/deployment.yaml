@@ -80,5 +80,12 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
+            # 🔴 runAsNonRoot 만 켜면 파드가 안 뜬다.
+            #   Error: container has runAsNonRoot and image has non-numeric user (node),
+            #          cannot verify user is non-root
+            # 이미지의 USER 가 이름(node)이라 kubelet 이 "이게 루트가 아님" 을 증명하지
+            # 못한다. 숫자로 박아 줘야 한다. node 공식 이미지에서 node 는 UID/GID 1000 이다.
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               drop: ["ALL"]
