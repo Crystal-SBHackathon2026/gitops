@@ -47,6 +47,7 @@ Google 임시 권한 추가 직후 첫 발급 요청은 HTTP 403이었어요. IA
 
 - AWS·local·GCP의 두 source를 각각 렌더링해 중복 리소스·환경 값·이미지·분석 선택을 확인했어요. AWS는 api-ok/error-rate 카나리, local은 api-ok 카나리, GCP는 두 Service 블루그린이에요. #51의 목적지·namespace·annotation·세 구독·CreateNamespace=false도 확인했어요.
 - [Verify-GkeBootstrap.py](../argocd/install/gke/Verify-GkeBootstrap.py)는 `--rendered-manifests`로 두 source를 합친 입력을 받아요. 기존 `--rendered-overlay`도 별칭으로 유지해요. 리소스 중복·namespace·블루그린 Service 참조를 검사하며 기존 제한된 Role은 확장하지 않았어요.
+- 최신 main `c73ff6e`에 rebase한 뒤 #51 Application이 main과 같은지 확인했어요. 충돌은 과거 #37 Application 수정에서 발생했고 모두 #51 파일을 보존해 해결했어요. 실제 RBAC 검사에 쓴 GCP 렌더링 입력의 SHA256도 rebase 전후 동일해요. Python AST·PowerShell 스크립트 2개 문법·bootstrap 6개 리소스·로컬 문서 링크 33개·`git diff --check`를 통과했어요. Application·앱 overlay·공통 Notifications는 main과 차이가 없어요.
 - 실제 Application 적용·첫 앱 동기화·Pod Ready·내부 `/healthz`와 `/api/info`·environment=gcp/region=asia-northeast1·이미지 SHA/앱 버전 확인은 남아 있어요. 두 source의 revision도 기록해요.
 - GCP Notifications 수신·검토 기록 연결·baseline과 앱 동기화 트래픽의 자동 인증 갱신을 후속 검증해요. 실패 이벤트가 실제 발생하지 않았다면 검증 완료로 표시하지 않아요.
 - 공개 Ingress/LB·PVC·DB·Secret·마이그레이션과 전체 활성 환경 gate는 별도 완료 기준이에요. 현재 Role은 Service·Rollout·AnalysisTemplate 쓰기만 허용하므로 새 출력이 필요하면 RBAC·비용·담당 범위를 먼저 맞춰요.

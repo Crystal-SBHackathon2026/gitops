@@ -8,7 +8,7 @@
 - GKE API·kube-system UID는 [target.json](target.json)에 기록해요. 재생성되면 새 UID/API를 확인한 뒤 이 파일과 등록 정보를 함께 갱신해요.
 - GCP 담당은 이 디렉터리의 namespace·Rollouts·GKE 배포 RBAC·API 허용 목록·WIF provider·전용 Google 서비스 계정 IAM을 관리해요. 앱 overlay와 bootstrap은 분리해요. 현재 `apps/sample-app/overlays/gcp`는 #48의 수동 블루그린 데모 구성이에요.
 - EKS 담당은 중앙 등록 Secret·EKS Controller/IAM/네트워크를 관리해요. 등록 결과와 후속 기준은 [EKS 연결 인계](../../../docs/gcp-eks-registration-request.md)에 있어요.
-- Application·공통 카나리/블루그린·Notifications 템플릿/트리거는 성진님 담당 변경을 재사용해요. GCP Application의 app/env·세 가지 구독·CreateNamespace=false는 [PR #51](https://github.com/Crystal-SBHackathon2026/gitops/pull/51)에서 진행하며 #37에서 중복 수정하지 않아요. #38 수신 계약과 #49·#50 활성화/다중 source 수정은 main에 반영됐어요.
+- Application·공통 카나리/블루그린·Notifications 템플릿/트리거는 성진님 담당 변경을 재사용해요. GCP Application의 app/env·세 가지 구독·CreateNamespace=false는 [PR #51](https://github.com/Crystal-SBHackathon2026/gitops/pull/51)로 머지됐고 #37에서 중복 수정하지 않아요. #38 수신 계약과 #49·#50 활성화/다중 source 수정도 main에 반영됐어요.
 
 ## 설치
 
@@ -89,7 +89,7 @@ EKS 담당의 등록과 Application 적용 이후에는 아래 항목을 별도�
 
 - 실제 GKE UID·Application destination·GitOps revision·Pod 이미지/Ready
 - GKE Service 내부 `/healthz`·`/api/info` HTTP 200, `environment=gcp`·`region=asia-northeast1`·버전 일치
-- GKE `sample-app`의 AnalysisTemplate 존재와, 후속 업데이트 시 AnalysisRun/카나리 결과. 최초 배포만으로 카나리 분석 성공을 판단하지 않아요.
+- GKE `sample-app`의 AnalysisTemplate 존재와 후속 블루그린 업데이트의 active/preview Service·승격 결과. 현재 전환 전후 Analysis가 없으므로 템플릿 존재나 최초 배포만으로 분석 실행 성공을 판단하지 않아요.
 - 중앙 Notifications의 app/env/images/revision와 Review API의 GCP 배포 기록. GCP 검토 기록과 매칭되지 않은 이벤트 수신은 gcp baseline 완료가 아니에요.
 
 현재 GCP overlay에는 Ingress가 없어요. 공개 LB·NEG/health check·외부 응답은 연재님 렌더러 보완과 연결하는 후속 작업이에요. GKE Prometheus를 설치하거나 공통 메트릭 분석 URL을 임의로 바꾸지 않아요.
@@ -104,7 +104,7 @@ EKS 담당의 등록과 Application 적용 이후에는 아래 항목을 별도�
 
 2026-10-10 오전 EKS 실측 egress `43.200.199.19/32`를 추가하고 WIF/IAM/Google RoleBinding을 준비했어요. 당시 Google RBAC 26개·Kubernetes SA 11개 결과는 [오전 WIF 기록](../../../docs/gcp-wif-verification-2026-10-10.md)에 보존해요. 최신 네 리소스 입력과 EKS 담당의 등록·만료 후 재발급 결과는 [연결 검증 기록](../../../docs/gcp-integration-verification-2026-10-10.md)을 참고해요. 앱 트래픽에서의 자동 갱신·실제 앱 실행·알림/baseline 검증은 남아 있어요.
 
-성진님의 [PR #51](https://github.com/Crystal-SBHackathon2026/gitops/pull/51)은 두 source·등록 이름 `tokyo-gke`를 유지하고 app/env·성공/Degraded/sync_failed 구독·`CreateNamespace=false`를 준비했어요. 이 파일의 검토·머지와 적용 revision을 맞춘 뒤 성진님이 Application 적용을 진행해요. [기존 검증 기록](../../../docs/gcp-gke-verification-2026-10-09.md)과 [연재님 능력표 인계](../../../docs/gcp-gke-capability-handoff.md)도 함께 참고해요.
+성진님의 [PR #51](https://github.com/Crystal-SBHackathon2026/gitops/pull/51)은 18:39:38 KST 머지됐어요. 두 source·등록 이름 `tokyo-gke`를 유지하고 app/env·성공/Degraded/sync_failed 구독·`CreateNamespace=false`를 반영했어요. 최종 main revision을 맞춘 뒤 성진님이 Application 적용을 진행해요. [기존 검증 기록](../../../docs/gcp-gke-verification-2026-10-09.md)과 [연재님 능력표 인계](../../../docs/gcp-gke-capability-handoff.md)도 함께 참고해요.
 
 ## 회수와 운영 종료
 
