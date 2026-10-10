@@ -72,6 +72,7 @@ PR #38 예제는 PR #67 모델에서 유효하지만 기존 공개 파일이 출
 - **직접 확인 — 같은 시각:** `http://34.85.123.113`의 `/healthz`·`/api/info` HTTP 200, `gcp/asia-northeast1`, 이미지/응답 버전 `0e402802ea345ed5503a5f298f40fb49f887ae54`였어요. active UID `fb466af7-ebeb-483f-8479-d2081a12f515`·ClusterIP `10.62.3.1`·selector hash `6d7f7645d7`를 유지했고 preview는 내부였어요. forwarding rule 1개·target pool HEALTHY·Service/health check 방화벽과 별도 예약 IP 없음도 확인했어요.
 - **팀원 공유 — 01:48 KST:** 성진님이 [외부 응답 20/20 HTTP 200·세 환경 버전 일치](https://softbankhackathon2026.slack.com/archives/C0C1V166M5L/p1791650901911239)를 재확인했어요. 이 문서의 직접 GCP 조회와 구분해요.
 - **팀 합의 — 01:47 KST:** 성진님은 [Service를 overlay 밖으로 옮기는 제안을 철회](https://softbankhackathon2026.slack.com/archives/C0C1V166M5L/p1791650828387119)하고 PR #67 재사용·명세 준비 뒤 활성화·Service/selector 검증에 동의했어요. 별도 Service Application이나 세 번째 source를 추가하지 않아요.
+- **최신 저장소 반영 — 02:35 KST:** 성진님의 [PR #71](https://github.com/Crystal-SBHackathon2026/gitops/pull/71)이 main `854fd090b4789908bb67503b95b67b41d8fb4422`로 머지됐어요. 중앙 Prometheus의 Endpoints가 도쿄 공개 IP를 참조하므로 IP 변경·LB 회수 때 모니터링/5050 담당과 함께 갱신·정리하는 조건을 운영 안내에 추가했어요. 타깃 up·env 라벨 aws/gcp·재시작 0회는 해당 PR의 팀원 검증 결과예요. 이 채팅에서 EKS 설정을 변경하거나 실제 지표 수집을 재검증하지 않았어요.
 
 01:10 실제 검증은 PR #68의 기존 수동 overlay를 적용한 결과예요. PR #67의 새 렌더러가 운영에서 재생성한 결과가 아니에요. 현재 active와 preview가 같은 버전이므로 새 preview의 승격 전후 전환도 이 결과에 포함하지 않아요.
 
@@ -85,11 +86,14 @@ PR #38 예제는 PR #67 모델에서 유효하지만 기존 공개 파일이 출
 | 새 렌더러의 실제 GKE 반영 | 대상 UID·Service UID/ClusterIP/IP/selector·Pod/응답 버전·preview 내부·수동 승격 유지 확인 |
 | PR A와 수동 승격 | 성진님과 새 preview Paused·승격 전 공개 URL의 이전 버전·Promote 뒤 같은 URL의 새 버전·후속 CI 확인 |
 | 5050 화면 | 혜연님 서버 프록시의 도쿄 카드·환경/버전·자동 새로고침 확인 |
+| 공개 IP 변경·운영 종료 | 성진님·EKS 담당의 중앙 모니터링 Endpoints/수집 연결, 혜연님의 5050 프록시를 함께 갱신/정리; GCP 담당은 새 주소·서비스 응답 또는 LB 회수를 확인 |
 | 알림·baseline·WIF 갱신 | 성진님·혜연님·연재님과 실제 수신/기록 연결; GCP 담당은 앱 트래픽 중 인증 갱신 결과 확인 |
 | EKS 기반 변경 | 이 채팅에서 수정하지 않고 EKS 담당에 이유·대상·검증 기준을 요청 |
 
 이번 문서 검증에서는 실제 팀 PR A 입력 검증, 원격 Git 커밋, 기능 플래그/CI 활성화, 클러스터 apply/server dry-run, Promote, 5050 화면 확인을 실행하지 않았어요. 문서 변경은 링크·명세 예제/기존 모델·PowerShell 구문·변경 범위·`git diff --check`로 정적 검증해요.
 
 02:29 KST 문서 검사에서 로컬 링크/앵커 16개, YAML 예제 1개의 기존 모델 수용·현재 공개 패치 일치·namespace/포트/수동 승격 조건, PowerShell 예제 4개의 구문 검사를 통과했어요. 명령 예제는 실행하지 않았어요. 변경은 README와 이 문서를 포함한 docs 2개이며 `apps/`·`argocd/`·`scripts/`의 차이 없음과 diff/공백 검사도 통과했어요.
+
+02:37 KST에 최신 main `854fd09`를 통합한 뒤 로컬 링크/앵커 17개·기존 YAML/모델 조건·문서 변경 범위를 다시 통과했어요. PR #71의 Endpoints IP/포트·ServiceMonitor 경로/간격을 main YAML과 대조했고 `monitoring/`·`argocd/` 변경을 보존했어요. 기존 계약 검사 기준 `c180dcd`와 최신 main 사이의 sample-app base/overlay·GCP Application·GKE 연결 파일에는 차이가 없었어요.
 
 문서 작업 #70과 실제 공동 검증 [#66](https://github.com/Crystal-SBHackathon2026/gitops/issues/66)·[#37](https://github.com/Crystal-SBHackathon2026/gitops/issues/37)을 분리해 관리해요. 전체 연결 투두와 팀원용 연결 예시는 [팀 Notion](https://app.notion.com/p/3f48bee9ada481e2bec4f8940a6cd4a4)에 이어서 기록해요. 운영 종료·수동 회수는 기존 운영 안내를 따르며 자동 삭제를 추가하지 않아요.

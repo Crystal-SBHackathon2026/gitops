@@ -135,13 +135,23 @@ target pool 방식이면 위 조회의 실제 target pool 이름으로 `gcloud c
 
 현재 AWS 단일 명세 데모에서는 base 이미지 변경이 GCP 수동 블루그린에도 전달돼요. 연재님의 로컬 PR A는 새 다중 환경 기능을 전제로 한 통합 입력이므로, 현재 모드의 이미지 전환 검증과 구분해요. 어느 PR A와 CI 모드로 리허설할지 성진님·연재님과 먼저 맞춰요.
 
+## 공개 IP의 모니터링·화면 의존성
+
+2026-10-11 02:35 KST에 머지된 성진님의 [PR #71](https://github.com/Crystal-SBHackathon2026/gitops/pull/71)은 서울 Prometheus에서 도쿄 공개 주소의 `/metrics`를 수집해요. [monitoring/external/tokyo.yaml](../monitoring/external/tokyo.yaml)의 EKS `monitoring/sample-app-tokyo` Endpoints가 `34.85.123.113:80`을 참조하고 ServiceMonitor는 `/metrics`를 30초 간격으로 수집해요. GKE에 Prometheus를 추가하는 구성은 아니에요.
+
+성진님 PR에는 타깃 up·`env` 라벨 `aws/gcp`·Prometheus 재시작 0회를 확인한 결과가 있어요. 이 채팅의 직접 EKS 실측 결과와 구분해요. 기존 GCP 외부 HTTP 응답 검증만으로 중앙 Prometheus 수집·Grafana 화면까지 완료했다고 판단하지 않아요.
+
+- 수동 승격·후속 CI에서는 같은 active Service·공개 IP를 유지하는지 확인해요. 같은 IP를 유지하면 Endpoints의 목적지는 그대로 사용할 수 있어요.
+- LB/Service를 재생성해 IP가 바뀌면 GCP 담당이 새 실제 IP·환경/버전·외부 응답을 확인하고 성진님·EKS 담당에게 기존 IP→새 IP와 위 Endpoints 변경 요청을 전달해요. 담당자의 GitOps 반영 뒤 실제 타깃 up·`env=gcp` 지표를 확인하고, 혜연님의 5050 프록시 주소도 함께 갱신·검증해요.
+- LB 회수 전에 성진님·EKS 담당과 해당 수집 연결의 중지/정리, 혜연님과 도쿄 카드 처리를 맞춰요. ServiceMonitor·Endpoints·중앙 Application의 정리는 해당 담당의 별도 GitOps 변경으로 진행해요. 이 채팅에서 EKS 리소스나 Prometheus CR을 수정하지 않아요.
+
 ## 운영 기간·비용·수동 회수
 
 LB 1개를 생성 시점부터 2026-10-12 23:59 KST까지 운영하는 계획이에요. 약 48시간 기준 forwarding rule 비용은 약 USD 1.20이며, 도쿄 데이터 처리 비용은 inbound/outbound 각각 USD 0.012/GiB, 인터넷 송신·세금은 별도예요. [공식 LB 가격표](https://cloud.google.com/load-balancing/pricing)를 기준으로 해요. 무료 크레딧 적용 여부는 미확인이에요. 운영 기간 종료만으로 과금 자원이 삭제되지는 않으며 사용자가 직접 삭제해요.
 
 이번 구성은 예약 IP를 따로 만들지 않아요. 같은 Service를 유지하는 동안의 주소 보존을 검증하며, Service를 삭제·재생성하거나 클러스터를 재생성한 뒤에도 같은 주소라고 가정하지 않아요.
 
-1. 삭제 전에 현재 Service·외부 IP·forwarding rule·target/health check·연결된 방화벽과 예약 IP 유무를 기록해요.
+1. 삭제 전에 현재 Service·외부 IP·forwarding rule·target/health check·연결된 방화벽과 예약 IP 유무를 기록해요. 위 모니터링 수집 연결과 5050 프록시의 회수 순서도 해당 담당자와 확인해요.
 2. LB만 회수할 때는 현재 수동 overlay 모드에서 별도 GitOps 변경으로 `service-public.yaml` patch 참조와 파일을 제거하고 GCP active Service가 ClusterIP로 동기화되게 해요. 명세 기반 재생성을 활성화한 뒤라면 먼저 담당자와 요청/재생성 경로·공개 명세·삭제 보호 처리까지 합의해요. 공개 명세를 그대로 두면 LB가 재생성될 수 있고, 공개 필드만 빼면 삭제 보호에 차단돼요. Git 패치 삭제만으로 종료됐다고 판단하지 않아요.
 3. GKE Controller의 LB 정리를 기다린 뒤 해당 IP의 forwarding rule·연결된 target/health check·Service 전용 방화벽이 사라졌는지 확인해요. preview와 내부 서비스도 다시 확인해요. 공유 health check·클러스터 공통 방화벽을 이름만 보고 삭제하지 않아요.
 4. 클러스터 전체를 종료할 때는 성진님과 중앙 Application의 자동 재생성을 중지한 뒤 사용자가 클러스터를 직접 삭제해요. 남은 LB·디스크·예약 IP를 GCP에서 별도로 조회해요.
