@@ -44,7 +44,7 @@ spec:
     - name: canary-hash
   metrics:
     - name: api-ok
-      interval: 10s
+      interval: 5s
       count: 6
       failureLimit: 1              # 2번째 Failed 에서 중단
       consecutiveErrorLimit: 2     # 3번 연속 Error 에서 중단
@@ -65,8 +65,8 @@ spec:
       # 🔴 20초를 기다렸다 잰다. rate(...[1m]) 은 창 안에 표본이 2개 이상 있어야
       # 값을 낸다. 10초 스크레이프에서는 새 파드가 20초 뒤에야 측정 가능해지고,
       # 그 전 측정은 0 으로 "통과" 해 실패를 놓친다 (#41 실측).
-      initialDelay: 20s
-      interval: 10s
+      initialDelay: 10s
+      interval: 5s
       count: 4                     # initialDelay 20s + 10s x 4 = 약 60초
       failureLimit: 1              # 2번째 Failed 에서 중단
       consecutiveErrorLimit: 4

@@ -39,7 +39,7 @@ spec:
     - name: canary-hash
   metrics:
     - name: api-ok
-      interval: 10s
+      interval: 5s
       count: 6
       failureLimit: 1              # 2번째 Failed 에서 중단
       consecutiveErrorLimit: 2     # 3번 연속 Error 에서 중단
