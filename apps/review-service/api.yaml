@@ -49,6 +49,10 @@ spec:
             # 배포 진행 화면의 실제 환경 카드 — 배포 알림이 오는 환경. 기본값(aws,local)이면 도쿄(gcp)가 "계획" 카드로 나온다
             - name: DEPLOY_ENVS
               value: "aws,gcp,local"
+            # 진행 화면 환경 카드의 "모니터링" 버튼 → {GRAFANA_URL}/d/apps-{app}?var-env={env} (review-service#66).
+            # Grafana 는 port-forward 로만 연다 — 버튼은 localhost:3000 을 열어 둔 노트북에서만 동작한다. 비우면 버튼이 없다
+            - name: GRAFANA_URL
+              value: "http://localhost:3000"
             # 배포 진행 화면(/ui/reviews/{id})의 환경별 앱 주소 (review-service#50). http(s) 만 받는다.
             # aws 는 sample-app ingress ADDRESS (10/09 장애 뒤 새로 만든 ALB), local 은 로컬 k3s 의 sample-app 포트(localhost:8081)
             - name: APP_URLS
