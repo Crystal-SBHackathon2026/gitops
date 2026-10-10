@@ -21,12 +21,20 @@ spec:
       # 가중치는 파드 수로 환산된다. 지금 명세는 replicas 3 이라 50% = 새 버전 2 + 옛 버전 1 이다.
       # 그 상태에서 분석이 앱 응답을 60초 동안 재고, 멀쩡하면 100% 로 넘어간다.
       # 실패하면 중단하고 옛 버전으로 되돌린다.
-      # (Prometheus 기반 에러율 지표는 환경별 조건이 달라 빠졌다 — analysistemplate.yaml 참고)
+      # sample-app-health 의 **내용은 환경마다 다르다.** base 에 두지 않고
+      # Argo CD Application 이 ../analysis/{default,prometheus} 중 하나를
+      # 두 번째 소스로 가져간다. Prometheus 가 있는 환경에서만 에러율을 본다 (#24).
       steps:
         - setWeight: 50
         - analysis:
             templates:
               - templateName: sample-app-health
+            # 🔴 카나리 파드만 재기 위한 값. Latest = 지금 올라가는(카나리) 파드 해시다.
+            # Stable 로 바꾸면 옛 파드를 재게 되어 아무 의미가 없다.
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
   selector:
     matchLabels:
       app: sample-app
