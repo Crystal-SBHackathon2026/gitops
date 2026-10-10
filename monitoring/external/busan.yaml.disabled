@@ -1,0 +1,82 @@
+# 부산 로컬 k3s 의 sample-app 지표를 서울 EKS 의 Prometheus 가 긁는다.
+#
+# 🔴 지금은 꺼져 있다. 파일 이름이 `.disabled` 라 kustomization 이 읽지 않는다.
+#    현장에서 터널을 켜고 아래 「켜는 법」 대로 하면 2분이면 된다.
+#
+# ──────────────────────────────────────────────────────────────────────
+# 왜 도쿄(tokyo.yaml)와 방식이 다른가
+#
+#   도쿄   공개 LB 가 있다           → Service + Endpoints(고정 IP) + ServiceMonitor
+#   부산   노트북 안이라 주소가 없다   → 터널로 호스트 이름을 만들고 ScrapeConfig
+#
+# Endpoints 는 **IP 만** 받는다. 터널은 호스트 이름(xxx.trycloudflare.com)이고 그 뒤
+# IP 가 계속 바뀌므로 Endpoints 로는 못 쓴다. 그래서 ScrapeConfig 를 쓴다.
+#
+# 🔴 재시작이 없는 이유 — 라벨을 반드시 붙일 것
+#   Prometheus CR 이 `scrapeConfigSelector: {matchLabels: {release: monitoring}}` 다.
+#   (ServiceMonitor 와 다르다. 그쪽은 `{}` 라 라벨이 필요 없다.)
+#   이 라벨이 있으면 CR 을 고칠 필요가 없어 오퍼레이터가 설정만 다시 읽는다.
+#   CR 을 고치면 파드가 재시작되고 **카나리 자동 중단 판정이 그 사이 멈춘다.**
+#
+# 버린 방안 — 로컬에 Prometheus 깔고 remote-write
+#   서울 Prometheus 에 `enableRemoteWriteReceiver` 를 켜야 하는데 그게 CR 변경이라
+#   재시작을 부른다. 게다가 **노트북에서 EKS 로 들어갈 공개 경로도 따로 필요**하다.
+#   긁어오는 쪽이 설치도 재시작도 없이 끝난다.
+#
+# ──────────────────────────────────────────────────────────────────────
+# 켜는 법 (현장에서)
+#
+#   ① 노트북에서 터널을 띄운다. 계정 없이 되는 임시 터널이다.
+#        cloudflared tunnel --url http://localhost:8081
+#      출력에 https://<무작위>.trycloudflare.com 가 나온다. 창을 닫으면 터널이 죽는다.
+#      cloudflared 가 없으면:  winget install Cloudflare.cloudflared
+#
+#   ② 주소가 실제로 열렸는지 먼저 확인한다 (이게 안 되면 아래는 다 헛수고다)
+#        curl -s https://<무작위>.trycloudflare.com/metrics | head -3
+#      → http_requests_total{...,env="local"} 이 보여야 한다
+#
+#   ③ 아래 `__REPLACE_ME__` 를 그 호스트 이름으로 바꾼다 (https:// 와 끝 / 는 빼고)
+#
+#   ④ 파일 이름에서 .disabled 를 떼고 kustomization.yaml 의 resources 에 busan.yaml 추가
+#
+#   ⑤ 적용. Argo CD 가 관리하므로 커밋·푸시해도 되고, 급하면 직접 넣어도 된다
+#        kubectl apply -k monitoring/external
+#
+#   ⑥ 1분쯤 뒤 확인
+#        kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090
+#        curl -s 'http://127.0.0.1:9090/api/v1/targets' | grep busan
+#        → health 가 "up" 이어야 한다
+#        curl -s --get --data-urlencode 'match[]=http_requests_total{app="sample-app"}' \
+#             http://127.0.0.1:9090/api/v1/series | grep -o '"env":"[a-z]*"' | sort -u
+#        → "aws" "gcp" "local" 셋이 나오면 끝이다
+#
+# 되돌리기 — 파일을 다시 .disabled 로 바꾸거나 ScrapeConfig 만 지운다.
+#   kubectl -n monitoring delete scrapeconfig sample-app-busan
+# 재시작은 없다.
+#
+# ⚠️ 터널 주소는 터널을 다시 띄울 때마다 바뀐다. 네트워크가 바뀌어도 다시 띄워야 한다.
+#    그때는 ③부터 다시 하면 된다.
+#
+# ⚠️ 터널이 죽으면 타깃이 down 이 되고 부산 패널이 빈다. **지금보다 나빠지지는 않는다**
+#    (지금도 비어 있다). 카나리 판정은 서울 지표만 보므로 영향이 없다.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: sample-app-busan
+  namespace: monitoring
+  labels:
+    # 🔴 이 라벨이 없으면 Prometheus 가 집어가지 않는다. 위 설명 참고.
+    release: monitoring
+spec:
+  staticConfigs:
+    - targets:
+        - __REPLACE_ME__
+  metricsPath: /metrics
+  # 터널은 HTTPS 다. 도쿄(http)와 다르다.
+  scheme: HTTPS
+  # 공개 인터넷을 건너가고 카나리 판정에 쓰이지 않으므로 기본 주기로 둔다.
+  # (서울 sample-app 만 5초다 — 그쪽은 판정이 걸려 있다)
+  scrapeInterval: 30s
+  scrapeTimeout: 10s
+  # 앱이 env="local" 을 지표에 직접 붙여 보낸다. target 라벨로 덮어쓰지 않는다.
+  # 덮어쓰면 충돌해서 exported_env 로 밀린다.
