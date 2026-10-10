@@ -5,7 +5,7 @@
 - 작업: [gitops #37](https://github.com/Crystal-SBHackathon2026/gitops/issues/37)의 GCP namespace RBAC 후속 보완
 - 요청: [성진님 21:00 Slack 기록](https://softbankhackathon2026.slack.com/archives/C0C1V166M5L/p1791633648667899)
 - 소스: [rbac.yaml](../argocd/install/gke/rbac.yaml), [검증 도구](../argocd/install/gke/Verify-GkeBootstrap.py), [운영 안내](../argocd/install/gke/README.md)
-- 적용 시각: 2026-10-10 23:12 KST, 서비스 조회 시각: 23:17 KST
+- 적용 시각: 2026-10-10 23:12 KST, 서비스 조회 시각: 23:17 KST, 공식 WIF 사후 검증: 23:54 KST
 
 ## 대상과 변경
 
@@ -39,9 +39,12 @@
 | 변경 전 | 보완한 검증 도구의 기존 Kubernetes SA 인증 | status patch 허용 검사에서 실패해 누락 권한을 검출했어요. |
 | 23:12, 변경 후 | 기존 Kubernetes SA TokenRequest 인증 | 19개 통과. status 권한 5개, 실제 status GET·dry-run PATCH, 두 Service·Rollout·AnalysisTemplate 생성 dry-run을 포함해요. Rollouts v1.10.0 Ready·CRD 5개 Established도 확인했어요. |
 | 23:15, 변경 후 | GKE 운영자의 Kubernetes User impersonation으로 Google 계정 이메일 지정 | 허용·거부 8개와 기존 Rollout status server dry-run PATCH 통과. Google WIF 토큰을 새로 교환한 검사는 아니에요. |
-| 변경 후 | EKS argocd-server에서 공식 인증 재실행 시도 | 현재 PC에서 EKS API 접속이 타임아웃되어 WIF 재교환 이후 검증은 완료하지 못했어요. GKE의 RBAC 통과 결과와 구분해요. |
+| 변경 후 최초 시도 | EKS argocd-server에서 공식 인증 재실행 시도 | 당시 PC에서 EKS API 접속이 타임아웃되어 WIF 재교환 이후 검증을 완료하지 못했어요. 아래 23:54 재검증에서 해소됐어요. |
+| 23:54, 변경 후 재검증 | 기존 EKS argocd-server의 공식 `argocd-k8s-auth gcp` + 등록된 ADC 설정 | 실제 WIF Google 계정 식별·권한·status GET/dry-run PATCH 11개 통과. status PATCH HTTP 200, get/patch/update 허용과 제한된 권한을 확인했어요. |
 
 Google User impersonation 검사에서는 `sample-app`의 status get/patch/update만 허용되고, `kube-system`의 Rollout status patch·Deployment status patch·Secret patch·RoleBinding patch·노드 조회는 거부됨을 확인했어요. 실제 UI Promote·pause 해제·active Service 전환은 실행하지 않았어요. abort/pause/restart 등의 다른 UI 동작도 이번 검증 결과에 포함하지 않아요.
+
+23:54 재검증은 Kubernetes User impersonation이 아니라 기존 EKS Pod의 공식 WIF 인증으로 실행했어요. SelfSubjectReview로 실제 Google 계정 이메일을 확인했고, 검사 전후 Rollout pause와 active/preview selector가 같았어요. 토큰은 메모리에만 유지했으며 EKS 리소스를 변경하지 않았어요. 실제 GKE Role 규칙과 PR 소스의 일치·기존 Role UID 유지도 다시 확인했어요.
 
 Python AST·YAML 구조·Role 규칙 한 개 추가·기존 SA/RoleBinding 보존·AWS/local/GCP 및 GKE bootstrap Kustomize 렌더링·문서 링크 13개·`git diff --check`도 통과했어요. 앱 쓰기 검사는 server dry-run이며 앱 테스트 리소스를 생성하지 않아요.
 
@@ -60,7 +63,7 @@ Python AST·YAML 구조·Role 규칙 한 개 추가·기존 SA/RoleBinding 보�
 
 GKE authorized networks는 활성, 전체 Google 외부 CIDR 허용은 비활성이에요. `UPDATE_CLUSTER` 작업 `operation-1791641451401-65fe489e-d44e-440f-92ac-22ff53dac95e`는 23:10 KST에 DONE·오류 없음으로 끝났고 실제 허용 목록·API 접근을 재확인했어요. 최초 비동기 요청 후 CLI의 빈 JSON 배열을 처리하다 로컬 기록 오류가 났지만, 변경을 반복하지 않고 작업 상태를 조회해 성공을 확인한 뒤 결과 처리를 보완했어요.
 
-현재 PC → EKS API 접근은 별도 타임아웃 상태예요. 이 채팅에서 EKS 허용 목록을 변경하지 않았으며 EKS 담당의 접근 확인이 필요해요. GKE 접근 복구 성공을 EKS 접근 복구나 WIF 사후 검증 성공으로 취급하지 않아요.
+최초 사후 검사에서 PC → EKS API 접근도 타임아웃됐지만, 23:54 재시도에서는 기존 EKS Pod의 공식 인증 실행과 GKE WIF 사후 검증이 성공했어요. 이 채팅에서 EKS 허용 목록이나 리소스를 변경하지 않았어요. 앱 트래픽 중 client-go의 자동 인증 갱신은 이 일회성 공식 인증 검사와 구분해요.
 
 ## 23:17 KST 서비스 조회
 
@@ -73,6 +76,6 @@ GKE authorized networks는 활성, 전체 Google 외부 CIDR 허용은 비활성
 ## 후속 확인
 
 - 성진님이 중앙 Argo CD의 실제 Google 인증으로 Promote를 실행하고 새 active selector·Pod Ready·서비스 버전·Healthy 전환을 확인해요. 데모 시작 전에 최신 main의 v1 기준을 맞춰요.
-- EKS 담당이 현재 PC의 API 접근을 확인한 뒤 공식 WIF 재교환 또는 실제 앱 동작 중 인증 갱신 결과를 확인해요.
-- 도쿄 active Service의 외부 주소는 별도 작업이에요. 혜연님의 22:08 답장에서는 HTTP와 5050 서버 프록시 방식을 허용했어요. 23:14 시나리오 v2에서는 다중 환경 PR #64·#67을 내일 데모에 반영하지 않기로 했어요. 현재 main에서 공개 경로가 유지되는 방식·비용 승인을 확인한 뒤 연결해요.
+- 공식 WIF 인증의 사후 검증은 완료했어요. 실제 앱 동작 중 client-go 인증 자동 갱신 결과는 EKS 담당과 별도로 확인해요.
+- 도쿄 active Service의 외부 주소는 별도 작업이에요. 혜연님의 22:08 답장에서는 HTTP와 5050 서버 프록시 방식을 허용했어요. 23:14 시나리오 v2에서는 review-service의 다중 환경 PR #64·#67을 내일 데모에 반영하지 않기로 했어요. 현재 main에서 공개 경로가 유지되는 방식·비용 승인을 확인한 뒤 연결해요.
 - GCP 알림·검토 기록·baseline과 외부 주소에서 승격 전후 버전 전환은 별도 실제 검증 항목으로 남아요. 이번에는 새로운 LB·DB·노드·클러스터를 생성하지 않았어요.
