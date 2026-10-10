@@ -23,6 +23,10 @@ rules:
   - apiGroups: [argoproj.io]
     resources: [rollouts, analysistemplates]
     verbs: [create, update, patch, delete]
+  # 수동 승격은 Rollout 본체와 별도인 status 서브리소스를 수정한다.
+  - apiGroups: [argoproj.io]
+    resources: [rollouts/status]
+    verbs: [get, patch, update]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

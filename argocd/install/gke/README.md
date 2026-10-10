@@ -30,7 +30,7 @@ $gkeArtifacts = 'C:\private\crystal-gke-rollouts'
 
 ## 앱 권한과 인증 인계
 
-Role `sample-app/argocd-deployer`는 namespace 안의 리소스를 get/list/watch할 수 있어 Argo CD의 캐시·상태 조회를 지원해요. 이 조회 범위에는 해당 namespace의 Secret도 포함돼요. 쓰기는 현재 DB 없는 앱의 Service·Rollout·AnalysisTemplate의 create/update/patch/delete에만 허용해요. Secret 쓰기·RBAC 변경·토큰 발급·다른 namespace·노드/클러스터 리소스 권한은 없어요.
+Role `sample-app/argocd-deployer`는 namespace 안의 리소스를 get/list/watch할 수 있어 Argo CD의 캐시·상태 조회를 지원해요. 이 조회 범위에는 해당 namespace의 Secret도 포함돼요. 쓰기는 현재 DB 없는 앱의 Service·Rollout·AnalysisTemplate의 create/update/patch/delete와 수동 승격에 필요한 `rollouts/status`의 get/patch/update에 허용해요. Rollout 본체의 권한만으로는 status를 수정할 수 없어요. Secret 쓰기·RBAC 변경·토큰 발급·다른 namespace·노드/클러스터 리소스 권한은 없어요.
 
 기존 Kubernetes SA와 RoleBinding은 유지하고, [별도 RoleBinding](google-deployer-rolebinding.yaml)의 `kind: User`로 전용 Google 서비스 계정 이메일을 같은 Role에 연결해요. 운영 인증은 **EKS OIDC → Google WIF → Google 서비스 계정 impersonation**이고 Kubernetes SA 토큰은 회귀 검증에만 사용해요.
 
@@ -84,6 +84,8 @@ python argocd/install/gke/Verify-GkeBootstrap.py `
 ```
 
 검증은 Controller Ready·고정 이미지·CRD 5개의 Established와 실제 인증을 확인해요. namespace 조회·대상 Kubernetes SA UID 조회와 현재 앱 리소스의 server dry-run create는 성공해야 하고, kube-system/노드 조회·Secret 쓰기·권한 상승·토큰 발급은 HTTP 403이어야 해요. Google 계정 검사는 쓰기 12개 허용과 namespace/ClusterRole/Secret 확장 3개 거부를 SelfSubjectAccessReview로 추가 확인해요. 이 API의 HTTP 201은 검사 요청 성공이며 권한은 응답의 `allowed` 값으로 판정해요. 15분 토큰은 메모리에만 유지하고 token·API 응답 본문은 보고서에 넣지 않아요. app 리소스는 이 검증으로 실제 생성되지 않아요. 운영자 impersonation 검사는 EKS의 WIF 교환·갱신 검사와 구분해요.
+
+기존 Kubernetes SA와 Google 계정 모두 SelfSubjectAccessReview로 `sample-app`의 `rollouts/status` get/patch/update 허용, 다른 namespace의 status patch와 Deployment status patch 거부를 확인해요. 실제 Rollout이 생성된 이후에는 위 검증 명령에 `--verify-rollout-status`를 추가하면 status 조회와 빈 merge patch의 server dry-run도 확인해요. 실제 Promote나 pause 해제는 실행하지 않아요. 2026-10-10 수동 승격 권한 보완 결과는 [검증 기록](../../../docs/gcp-rollout-status-rbac-verification-2026-10-10.md)에 있어요.
 
 EKS 담당의 등록과 Application 적용 이후에는 아래 항목을 별도로 확인해요.
 

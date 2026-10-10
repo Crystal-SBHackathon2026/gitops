@@ -33,6 +33,8 @@ def main():
     parser.add_argument("--rendered-overlay", "--rendered-manifests", dest="rendered_overlay",
                         help="Combined Kustomize output from every Application source, including analysis/default")
     parser.add_argument("--google-service-account", help="Verify using a Google service account; operator needs scoped getAccessToken permission")
+    parser.add_argument("--verify-rollout-status", action="store_true",
+                        help="Read and server dry-run patch the existing sample-app Rollout status; does not promote")
     parser.add_argument("--output", required=True)
     options = parser.parse_args()
     target = json.loads(Path(__file__).with_name("target.json").read_text(encoding="utf-8"))
@@ -99,11 +101,11 @@ def main():
         credential_source = "kubernetes-tokenrequest"
     results = []
 
-    def request(label, method, path, expected, body=None, read_body=False):
+    def request(label, method, path, expected, body=None, read_body=False, content_type="application/json"):
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(
             target["server"] + path, data=data, method=method,
-            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+            headers={"Authorization": "Bearer " + token, "Content-Type": content_type},
         )
         response_body = None
         try:
@@ -154,6 +156,28 @@ def main():
                 raise RuntimeError(f"Unexpected permission: {verb} {resource}")
             results[-1].update(allowed=review["status"].get("allowed", False), expectedAllowed=allowed)
 
+    # Both RoleBindings must support manual promotion without expanding other writes.
+    status_permissions = [("argoproj.io", "rollouts", verb, "sample-app", True)
+                          for verb in ("get", "patch", "update")]
+    status_permissions += [("argoproj.io", "rollouts", "patch", "kube-system", False),
+                           ("apps", "deployments", "patch", "sample-app", False)]
+    for group, resource, verb, namespace, allowed in status_permissions:
+        label = f"self permission {namespace} {verb} {resource}/status"
+        review = request(label, "POST", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", 201,
+                         {"apiVersion": "authorization.k8s.io/v1", "kind": "SelfSubjectAccessReview",
+                          "spec": {"resourceAttributes": {"group": group, "resource": resource,
+                                   "subresource": "status", "verb": verb, "namespace": namespace,
+                                   "name": "sample-app"}}}, read_body=True)
+        if review["status"].get("allowed", False) != allowed:
+            raise RuntimeError(f"Unexpected permission: {namespace} {verb} {resource}/status")
+        results[-1].update(allowed=review["status"].get("allowed", False), expectedAllowed=allowed)
+
+    if options.verify_rollout_status:
+        status_path = "/apis/argoproj.io/v1alpha1/namespaces/sample-app/rollouts/sample-app/status"
+        request("read existing Rollout status", "GET", status_path, 200)
+        request("server dry-run patch existing Rollout status", "PATCH", status_path + "?dryRun=All", 200,
+                {}, content_type="application/merge-patch+json")
+
     rendered_resources = []
     if options.rendered_overlay:
         import yaml
@@ -195,6 +219,8 @@ def main():
         "checks": results,
         "renderedResources": rendered_resources,
         "appResourcesCreated": False,
+        "rolloutStatusDryRunVerified": options.verify_rollout_status,
+        "rolloutPromoted": False,
         "eksRegistrationVerified": False,
         "eksWifExchangeVerified": False,
     }
