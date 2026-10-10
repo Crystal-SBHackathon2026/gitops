@@ -10,3 +10,6 @@ namespace: monitoring
 
 resources:
   - tokyo.yaml
+  # 부산은 터널 주소가 있어야 켤 수 있다. 준비만 해뒀다 — busan.yaml.disabled 참고.
+  # 켤 때: 파일 이름에서 .disabled 를 떼고 아래 줄의 주석을 푼다.
+  # - busan.yaml
