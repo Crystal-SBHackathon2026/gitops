@@ -13,6 +13,18 @@ kind: Application
 metadata:
   name: sample-app-gcp
   namespace: argocd
+  annotations:
+    # 배포 성공·실패를 검토 서비스로 보낸다 (argocd/notifications/).
+    # GCP 는 중앙 EKS 의 Argo CD 가 관리하므로 EKS 의 notifications 설정·토큰을 그대로 쓴다.
+    #
+    # 🔴 app·env 가 둘 다 있어야 한다. 하나라도 비면 수신 쪽이 422 로 거절한다
+    #    (deployment_contract.py 의 app: min_length=1, env 는 aws|gcp|local 만 — 김연재 확인).
+    oneaction.crystal/app: sample-app
+    oneaction.crystal/env: gcp
+    notifications.argoproj.io/subscribe.on-deployed.review-api: ""
+    notifications.argoproj.io/subscribe.on-health-degraded.review-api: ""
+    # 적용 자체가 실패한 경우(옛 버전이 그대로 떠 있음). health 는 Healthy 로 보인다.
+    notifications.argoproj.io/subscribe.on-sync-failed.review-api: ""
 spec:
   project: default
   # 소스가 둘이다. gcp overlay 는 손 파일이다(렌더러는 overlays/aws 만 만든다). 분석도 손으로 관리한다.
@@ -33,4 +45,10 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+      # 🔴 false 다. tokyo-gke 등록이 **sample-app 네임스페이스만 관리하는 RBAC** 이라
+      # (박찬건 2026-10-09), Argo CD 에 네임스페이스를 만들 권한이 없다.
+      # true 로 두면 없을 때 만들려다 권한 오류로 동기화가 실패한다.
+      #
+      # ⚠️ 그래서 GKE 에 sample-app 네임스페이스가 **미리 있어야 한다.** 없으면 동기화가
+      #    namespace not found 로 실패한다. 첫 적용 전에 확인할 것.
+      - CreateNamespace=false
