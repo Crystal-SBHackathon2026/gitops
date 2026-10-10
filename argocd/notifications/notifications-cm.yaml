@@ -69,6 +69,14 @@ data:
         body: |
           {{- $dest := dig "spec" "destination" (dict) .app -}}
           {{- $op := dig "status" "operationState" (dict) .app -}}
+          {{- /* 🔴 멀티소스 Application 은 단일 revision 이 비고 revisions 배열만 찬다 (#45 뒤). */ -}}
+          {{- /*    단일소스(review-service-aws)는 반대라 양쪽을 다 다뤄야 한다. */ -}}
+          {{- $rev := dig "status" "sync" "revision" nil .app -}}
+          {{- $revs := dig "status" "sync" "revisions" (list) .app -}}
+          {{- if $revs }}{{ $rev = index $revs 0 }}{{ end -}}
+          {{- $oprev := dig "syncResult" "revision" nil $op -}}
+          {{- $oprevs := dig "syncResult" "revisions" (list) $op -}}
+          {{- if $oprevs }}{{ $oprev = index $oprevs 0 }}{{ end -}}
           {
             "schema_version": "deployment.result/v1",
             "event_type": "deployed",
@@ -81,12 +89,12 @@ data:
             "health_message": {{toJson (dig "status" "health" "message" nil .app)}},
             "sync_status": {{toJson (dig "status" "sync" "status" nil .app)}},
             "images": {{toJson (dig "status" "summary" "images" (list) .app)}},
-            "revision": {{toJson (dig "status" "sync" "revision" nil .app)}},
+            "revision": {{toJson $rev}},
             "observed_at": {{toJson (now | date "2006-01-02T15:04:05Z07:00")}},
             "operation": {{if $op}}{
               "phase": {{toJson (dig "phase" nil $op)}},
               "message": {{toJson (dig "message" nil $op)}},
-              "revision": {{toJson (dig "syncResult" "revision" nil $op)}},
+              "revision": {{toJson $oprev}},
               "started_at": {{toJson (dig "startedAt" nil $op)}},
               "finished_at": {{toJson (dig "finishedAt" nil $op)}},
               "resources": {{toJson (dig "syncResult" "resources" (list) $op)}}
@@ -102,6 +110,14 @@ data:
         body: |
           {{- $dest := dig "spec" "destination" (dict) .app -}}
           {{- $op := dig "status" "operationState" (dict) .app -}}
+          {{- /* 🔴 멀티소스 Application 은 단일 revision 이 비고 revisions 배열만 찬다 (#45 뒤). */ -}}
+          {{- /*    단일소스(review-service-aws)는 반대라 양쪽을 다 다뤄야 한다. */ -}}
+          {{- $rev := dig "status" "sync" "revision" nil .app -}}
+          {{- $revs := dig "status" "sync" "revisions" (list) .app -}}
+          {{- if $revs }}{{ $rev = index $revs 0 }}{{ end -}}
+          {{- $oprev := dig "syncResult" "revision" nil $op -}}
+          {{- $oprevs := dig "syncResult" "revisions" (list) $op -}}
+          {{- if $oprevs }}{{ $oprev = index $oprevs 0 }}{{ end -}}
           {
             "schema_version": "deployment.result/v1",
             "event_type": "health_degraded",
@@ -114,12 +130,12 @@ data:
             "health_message": {{toJson (dig "status" "health" "message" nil .app)}},
             "sync_status": {{toJson (dig "status" "sync" "status" nil .app)}},
             "images": {{toJson (dig "status" "summary" "images" (list) .app)}},
-            "revision": {{toJson (dig "status" "sync" "revision" nil .app)}},
+            "revision": {{toJson $rev}},
             "observed_at": {{toJson (now | date "2006-01-02T15:04:05Z07:00")}},
             "operation": {{if $op}}{
               "phase": {{toJson (dig "phase" nil $op)}},
               "message": {{toJson (dig "message" nil $op)}},
-              "revision": {{toJson (dig "syncResult" "revision" nil $op)}},
+              "revision": {{toJson $oprev}},
               "started_at": {{toJson (dig "startedAt" nil $op)}},
               "finished_at": {{toJson (dig "finishedAt" nil $op)}},
               "resources": {{toJson (dig "syncResult" "resources" (list) $op)}}
@@ -135,6 +151,14 @@ data:
         body: |
           {{- $dest := dig "spec" "destination" (dict) .app -}}
           {{- $op := dig "status" "operationState" (dict) .app -}}
+          {{- /* 🔴 멀티소스 Application 은 단일 revision 이 비고 revisions 배열만 찬다 (#45 뒤). */ -}}
+          {{- /*    단일소스(review-service-aws)는 반대라 양쪽을 다 다뤄야 한다. */ -}}
+          {{- $rev := dig "status" "sync" "revision" nil .app -}}
+          {{- $revs := dig "status" "sync" "revisions" (list) .app -}}
+          {{- if $revs }}{{ $rev = index $revs 0 }}{{ end -}}
+          {{- $oprev := dig "syncResult" "revision" nil $op -}}
+          {{- $oprevs := dig "syncResult" "revisions" (list) $op -}}
+          {{- if $oprevs }}{{ $oprev = index $oprevs 0 }}{{ end -}}
           {
             "schema_version": "deployment.result/v1",
             "event_type": "sync_failed",
@@ -147,12 +171,12 @@ data:
             "health_message": {{toJson (dig "status" "health" "message" nil .app)}},
             "sync_status": {{toJson (dig "status" "sync" "status" nil .app)}},
             "images": {{toJson (dig "status" "summary" "images" (list) .app)}},
-            "revision": {{toJson (dig "status" "sync" "revision" nil .app)}},
+            "revision": {{toJson $rev}},
             "observed_at": {{toJson (now | date "2006-01-02T15:04:05Z07:00")}},
             "operation": {{if $op}}{
               "phase": {{toJson (dig "phase" nil $op)}},
               "message": {{toJson (dig "message" nil $op)}},
-              "revision": {{toJson (dig "syncResult" "revision" nil $op)}},
+              "revision": {{toJson $oprev}},
               "started_at": {{toJson (dig "startedAt" nil $op)}},
               "finished_at": {{toJson (dig "finishedAt" nil $op)}},
               "resources": {{toJson (dig "syncResult" "resources" (list) $op)}}
@@ -163,23 +187,36 @@ data:
 
   # ── 트리거 ───────────────────────────────────────────────────────────────
   #
-  # 동기화가 끝나고 Healthy 가 된 순간 한 번. oncePer 가 리비전 기준이라
-  # gitops 커밋 하나당 최대 한 번 간다.
+  # 동기화가 끝나고 Healthy 가 된 순간 한 번. oncePer 가 작업(operation) 기준이라
+  # 동기화 작업 하나당 최대 한 번 간다.
+  #
+  # 🔴 2026-10-10: oncePer 를 revision → startedAt 으로 바꿨다.
+  #
+  # #45 로 Application 을 멀티소스로 바꾼 뒤 Argo CD 가 단일 `status.sync.revision` 을
+  # **채우지 않는다** (배열 `revisions` 만 찬다). 그래서 oncePer 키가 빈 값이 되고
+  # 모든 이벤트가 키 하나로 뭉쳐서 **첫 알림 뒤로 전부 억제됐다.**
+  # notified 어노테이션에 접두사 없는 `on-deployed:[0]...` 키가 남은 것으로 확인했다.
+  #
+  # startedAt 은 작업마다 다르고 operationState 가 있으면 반드시 있다. 아래
+  # on-sync-failed 가 이미 같은 이유로 startedAt 을 쓰고 있었다.
+  #
+  # 바뀌는 점: 같은 리비전을 다시 sync(self-heal 등) 하면 알림이 한 번 더 간다.
+  # 같은 (app, env, images) 중복은 Review API 가 멱등 처리한다 (2026-10-09 김혜연 합의).
   #
   # commit_overlay 와 CI 가 각각 gitops 에 커밋해 두 번 sync 될 수 있고, 그때 첫 알림은
   # overlay 만 반영된 상태라 images 가 옛 태그다. oncePer 를 images 기준으로 바꾸면
   # 그건 걸러지지만 설정만 바뀐 배포(이미지 동일)는 알림이 아예 안 가 baseline 이
-  # 갱신되지 않는다. 그래서 리비전 기준으로 두고 중복은 Review API 가 멱등 처리한다
-  # (2026-10-09 김혜연 합의).
+  # 갱신되지 않는다.
   trigger.on-deployed: |
     - when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
-      oncePer: app.status.operationState.syncResult.revision
+      oncePer: app.status.operationState.startedAt
       send: [deploy-result-deployed]
 
   # 배포 실패. Healthy·Degraded 외의 상태(Progressing 등)는 보내지 않는다.
+  # oncePer 를 sync.revision 에서 바꾼 이유는 위 on-deployed 주석과 같다 (멀티소스).
   trigger.on-health-degraded: |
     - when: app.status.health.status == 'Degraded'
-      oncePer: app.status.sync.revision
+      oncePer: app.status.operationState.startedAt
       send: [deploy-result-degraded]
 
   # 동기화 자체가 실패한 경우. health 는 Healthy 일 수 있다 — 옛 버전이 그대로 떠 있기
