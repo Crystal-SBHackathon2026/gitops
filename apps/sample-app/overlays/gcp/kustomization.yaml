@@ -10,6 +10,8 @@ resources:
   - ../../base
   - service-preview.yaml
 patches:
+  # active Service만 HTTP로 공개한다. preview와 Rollouts의 selector 관리는 유지한다.
+  - path: service-public.yaml
   - target:
       kind: Rollout
       name: sample-app

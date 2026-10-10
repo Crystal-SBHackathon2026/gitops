@@ -134,6 +134,8 @@ PR #41에서 `initialDelay: 20s`를 두고 `count`를 6 → 4로 줄였습니다
 
 생성된 도쿄 GKE의 Rollouts·배포 RBAC와 중앙 EKS 등록 절차는 [GKE 연결 문서](argocd/install/gke/README.md)를 따릅니다. 설치 완료와 실제 앱·알림 연결 완료를 구분합니다.
 
+도쿄 active Service의 HTTP 공개 경로, 5050 서버 프록시 연결과 승격 전후·운영 종료 검증은 [GCP 외부 접속 운영 안내](docs/gcp-public-service.md)를 따릅니다.
+
 ## Application 목적지
 
 | 파일 | 목적지 | 상태 |
@@ -141,7 +143,7 @@ PR #41에서 `initialDelay: 20s`를 두고 `count`를 6 → 4로 줄였습니다
 | `sample-app-aws.yaml` | `https://kubernetes.default.svc` | 적용됨. Argo CD가 EKS 안에 있어 in-cluster가 맞습니다 |
 | `review-service-aws.yaml` | `https://kubernetes.default.svc` | 적용됨 |
 | `sample-app-local.yaml` | `name: crystal-busan` | 로컬 자체 Argo CD에 등록해 사용합니다. [로컬 절차](argocd/install/README.md#로컬부산-k3s-환경) |
-| `sample-app-gcp.yaml` | `name: tokyo-gke` | GKE 기반은 직접 검증했고 중앙 EKS 등록은 담당자가 검증했습니다. PR #51은 머지됐으며 실제 Application 적용·앱 배포 검증이 남았습니다 |
+| `sample-app-gcp.yaml` | `name: tokyo-gke` | Application 적용·실제 GKE 내부 응답을 확인했습니다. 2026-10-11 00:34 KST에는 Synced/Healthy·최신 이미지 Pod 2개 Ready이며, 외부 LB 연결은 [#66](https://github.com/Crystal-SBHackathon2026/gitops/issues/66)에서 진행합니다 |
 
 **운영 모델에 따라 `local`·`gcp` 의 값이 달라집니다.**
 
