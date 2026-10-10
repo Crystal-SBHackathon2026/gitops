@@ -135,6 +135,8 @@ PR #41에서 `initialDelay: 20s`를 두고 `count`를 6 → 4로 줄였습니다
 
 도쿄 active Service의 HTTP 공개 경로, 5050 서버 프록시 연결과 승격 전후·운영 종료 검증은 [GCP 외부 접속 운영 안내](docs/gcp-public-service.md)를 따릅니다.
 
+명세 기반 공개 Service의 기존 renderer 호환성·삭제 보호 검사와 활성화 선행 조건은 [2026-10-11 공개 명세 검증 기록](docs/gcp-public-spec-verification-2026-10-11.md)에 있습니다. 운영 공개 경로 검증과 향후 다중 환경 활성화를 구분합니다.
+
 ## Application 목적지
 
 | 파일 | 목적지 | 상태 |
@@ -142,7 +144,7 @@ PR #41에서 `initialDelay: 20s`를 두고 `count`를 6 → 4로 줄였습니다
 | `sample-app-aws.yaml` | `https://kubernetes.default.svc` | 적용됨. Argo CD가 EKS 안에 있어 in-cluster가 맞습니다 |
 | `review-service-aws.yaml` | `https://kubernetes.default.svc` | 적용됨 |
 | `sample-app-local.yaml` | `name: crystal-busan` | 로컬 자체 Argo CD에 등록해 사용합니다. [로컬 절차](argocd/install/README.md#로컬부산-k3s-환경) |
-| `sample-app-gcp.yaml` | `name: tokyo-gke` | Application 적용·실제 GKE 내부 응답을 확인했습니다. 2026-10-11 00:34 KST에는 Synced/Healthy·최신 이미지 Pod 2개 Ready이며, 외부 LB 연결은 [#66](https://github.com/Crystal-SBHackathon2026/gitops/issues/66)에서 진행합니다 |
+| `sample-app-gcp.yaml` | `name: tokyo-gke` | 2026-10-11 01:10 KST에 Synced/Healthy·최신 이미지 Pod 2개 Ready와 `http://34.85.123.113`의 health/info HTTP 200·gcp/asia-northeast1·버전 일치를 확인했습니다. 5050 화면·새 preview 승격 전후 전환은 [#66](https://github.com/Crystal-SBHackathon2026/gitops/issues/66)의 공동 검증으로 남아 있습니다 |
 
 **운영 모델에 따라 `local`·`gcp` 의 값이 달라집니다.**
 
