@@ -102,9 +102,12 @@ target pool 방식이면 위 조회의 실제 target pool 이름으로 `gcloud c
 
 ## 같은 주소의 수동 전환과 후속 CI
 
-- 다음 정상 이미지가 들어오면 active·preview selector와 각 내부 응답 버전을 기록해요. 승격 대기 중 공개 URL은 기존 active 버전을 계속 반환해야 해요.
+성진님은 [00:43 KST 작업 스레드 답장](https://softbankhackathon2026.slack.com/archives/C0C1V166M5L/p1791647036188569)에서 00:15에 수동 승격했다고 알려주셨어요. 직접 조회한 active·preview selector도 모두 `6d7f7645d7`이고 버전은 `0e402802ea345ed5503a5f298f40fb49f887ae54`예요. 현재는 승격을 기다리는 새 preview가 없으므로 LB 연결만으로 승격 전후 전환까지 검증할 수 없어요.
+
+- LB 연결 후 현재 active 버전의 외부 `/healthz` HTTP 200·`/api/info`의 `gcp/asia-northeast1`·이미지 SHA 일치부터 확인하고 성진님·혜연님께 공개 주소를 전달해요.
+- 리허설 PR A가 병합되고 실제 CI 이미지 갱신이 GCP에 반영되면 성진님과 Rollout Paused·서로 다른 active/preview selector·각 내부 응답 버전을 기록해요. 승격 대기 중 공개 URL은 기존 active 버전을 계속 반환해야 해요. 별도 테스트 이미지나 FAIL_RATE PR을 추가하지 않아요.
 - 성진님이 기존 Argo CD UI의 Promote를 실행해요. 같은 Service UID·IP·공개 URL에서 새 버전으로 바뀌고 Pod Ready·Rollout/Application Healthy가 되는지 함께 확인해요.
-- 실제 후속 CI의 이미지 태그 변경에서도 공개 타입·주소와 preview의 내부 타입이 유지되는지 확인해요. 이미지 전달 SHA와 GitOps revision은 각각 기록해요.
+- 리허설의 실제 후속 CI 이미지 태그 변경에서도 공개 타입·주소와 preview의 내부 타입이 유지되는지 함께 확인해요. 이미지 전달 SHA와 GitOps revision은 각각 기록해요.
 - 실제 승격·화면·후속 CI가 확인될 때까지 이슈의 해당 완료 조건을 남겨둬요. GCP 알림 수신·검토 기록·baseline과 앱 트래픽 중 인증 자동 갱신은 기존 [GKE 연결 작업](../argocd/install/gke/README.md)의 후속 검증이에요.
 
 ## 운영 기간·비용·수동 회수
@@ -129,6 +132,7 @@ LB 1개를 생성 시점부터 2026-10-12 23:59 KST까지 운영하는 계획이
 | 00:34 KST Service·클라우드 | active UID `fb466af7-ebeb-483f-8479-d2081a12f515`·ClusterIP `10.62.3.1`, preview UID `50e182af-354b-472d-abf0-07fc94212e90`·ClusterIP `10.62.12.245`; 두 Service는 아직 ClusterIP, 프로젝트 forwarding rule 0개 |
 | 00:39 KST 정적 회귀·CI 시뮬레이션 | AWS/local·두 Analysis 출력은 main과 동일, GCP는 active Service 타입만 변경, GCP 두 source 리소스 4개·preview 내부·수동 승격 유지와 다음 base 이미지 태그 변경 시 공개 설정 보존을 통과했어요. 로컬 문서 링크 11개와 diff 검사를 통과했고 PowerShell 예제 3개는 구문 검사만 했어요. |
 | 00:37 KST 실제 배포 계정·Service dry-run | 기존 EKS Pod의 공식 WIF로 Google 배포 계정을 확인하고 13개 검사를 통과했어요. Service get/patch/update 허용·범위 밖 거부, 기존 active의 LoadBalancer strategic merge dry-run HTTP 200·UID/ClusterIP/selector 보존·80→8080, 두 내부 Service의 health/info HTTP 200·gcp/asia-northeast1·버전 `0e402802ea345ed5503a5f298f40fb49f887ae54`를 확인했어요. 실제 Service·EKS 리소스·LB는 변경하지 않았어요. |
+| 00:43 KST 팀원 실행 결과 | 성진님이 00:15 수동 승격 완료와 active/preview 동일 selector를 공유했어요. 직접 조회한 현재 상태와 일치해요. 새 preview가 생기는 리허설 PR A에서 외부 URL의 승격 전후 전환과 후속 CI를 함께 확인하기로 했어요. |
 | PR 머지 후 확인 | 실제 LB/외부 URL·외부 HTTP·5050 화면·승격 전후 전환·후속 CI는 아직 미검증이에요. |
 
-위 시각의 상태 조회만으로 누가 Promote를 실행했는지 확정하지 않아요. 팀원의 실행 결과와 실제 서비스 전환 관찰은 별도로 대조해요.
+기존 Promote 완료는 성진님의 공유 결과와 현재 클러스터 상태를 대조한 기록이에요. 외부 URL에서 승격 전후 전환을 직접 관찰한 결과는 리허설 뒤 별도로 기록해요.
