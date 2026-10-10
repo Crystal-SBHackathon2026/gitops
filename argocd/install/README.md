@@ -84,7 +84,54 @@ curl http://localhost:8081/api/info
   ```bash
   kubectl -n argocd annotate application sample-app-local argocd.argoproj.io/refresh=hard --overwrite
   ```
-- 로컬은 `argocd-cm` 재조회 주기를 줄이지 않았습니다(기본 180초). 데모에서 빠르게 보여줘야 하면 EKS 와 같이 30초로 줄입니다 — 위 "git 을 다시 읽는 주기" 절 참고.
+### 재조회 주기 — 로컬도 EKS 와 같게 맞춥니다 (2026-10-10)
+
+전에는 로컬만 기본값(180초)으로 뒀습니다. **같은 커밋을 두 환경에 배포해 재보니 로컬이 AWS 보다 5분 반 늦었습니다.**
+
+```
+16:38:18   gitops 태그 갱신 (CI)
+16:38:45   AWS  Argo 감지      27초
+16:39:56   AWS  배포 완료       전 구간 3분 51초
+16:44:12   로컬  Argo 감지     5분 54초   ← 180초 주기 + repo-server 3분 캐시
+16:45:25   로컬  배포 완료      전 구간 9분 20초
+```
+
+데모에서 두 주소를 나란히 띄우면 **AWS 는 새 버전인데 로컬은 아직 옛 버전인 화면**이 나옵니다. 보고가 3분이라 그 안에 로컬이 못 들어옵니다.
+
+EKS 에서 쓰는 패치를 그대로 로컬에도 넣습니다. 파일은 환경 중립적이라 재사용합니다.
+
+```bash
+kubectl --context k3d-crystal-busan -n argocd patch cm argocd-cm --type merge \
+  --patch-file argocd/install/reconciliation-timeout.patch.yaml
+kubectl --context k3d-crystal-busan -n argocd rollout restart statefulset/argocd-application-controller
+
+kubectl --context k3d-crystal-busan -n argocd patch deployment argocd-repo-server \
+  --patch-file argocd/install/revision-cache.patch.yaml
+kubectl --context k3d-crystal-busan -n argocd rollout status deploy/argocd-repo-server
+```
+
+두 가지를 **다** 넣어야 합니다. 주기만 줄이면 repo-server 가 `main` 의 HEAD 를 3분간 기억해서 그대로 느립니다 — 위 「주기를 30초로 줄여도 반영이 3분 걸린다」 절과 같은 함정입니다.
+
+### Docker Desktop 의 포트 전달이 끊기는 일이 있습니다 (2026-10-10 겪음)
+
+컨테이너는 다 `Up` 인데 `localhost:8081` 과 kubectl 이 둘 다 안 됩니다. **TCP 는 붙고 데이터만 안 가서** 증상이 헷갈립니다.
+
+```
+호스트 → 7026                  connect 는 되고 "connection forcibly closed"
+호스트 → 8081                  http_code=000
+serverlb 안 → server-0:6443    401 (= API 는 정상)
+```
+
+클러스터 문제인지 포트 문제인지 가르는 명령입니다. 이게 되면 클러스터는 멀쩡합니다.
+
+```bash
+docker exec k3d-crystal-busan-server-0 \
+  kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes
+```
+
+**`serverlb` 재시작도, `k3d cluster stop/start` 도 안 통했습니다. Docker Desktop 자체를 재시작해야 나았습니다.** 범인은 `127.0.0.1:7026` 을 물고 있던 `wslrelay` 로 보입니다.
+
+재시작하면 k3d 컨테이너는 자동으로 올라오고, Argo CD 파드가 전부 Ready 되기까지 2~3분 걸립니다.
 - `-p "8081:80@loadbalancer"` 는 모든 인터페이스에 열립니다. 같은 LAN 에서 접속됩니다. 다른 기기로 시연할 때는 편하고, 막으려면 `127.0.0.1:8081:80` 으로 클러스터를 다시 만들어야 합니다.
 - Notifications 는 아직 안 붙였습니다. 로컬 Argo CD 가 Review API 에 닿으려면 **공개 주소**(플랫폼 ALB 의 `/webhooks/argocd`)와 토큰 공급이 필요합니다 — 박찬건님 작업.
 
