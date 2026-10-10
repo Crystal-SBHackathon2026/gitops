@@ -11,7 +11,7 @@
   "version": 1,
   "editable": true,
   "graphTooltip": 1,
-  "refresh": "30s",
+  "refresh": "5s",
   "time": {
     "from": "now-6h",
     "to": "now"
@@ -63,6 +63,189 @@
       "id": 1
     },
     {
+      "type": "stat",
+      "title": "승인 대기",
+      "description": "needs_human 검토 수 (업무 DB, 최근 1일 안에 바뀐 것). 1 이상이면 사람이 /ui 에서 결정해야 한다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(review_reviews{status=\"needs_human\"}) or vector(0)",
+          "legendFormat": "needs_human",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "id": 24
+    },
+    {
+      "type": "stat",
+      "title": "검토 진행 중",
+      "description": "received·reviewing 상태 검토 수 (업무 DB, 최근 1일 안에 바뀐 것)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(review_reviews{status=~\"received|reviewing\"}) or vector(0)",
+          "legendFormat": "in progress",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "id": 25
+    },
+    {
+      "type": "stat",
+      "title": "Kafka lag",
+      "description": "워커 consumer lag 합계 — 0 이 아니면 워커가 메시지를 다 못 읽었다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(review_worker_consumer_lag) or vector(0)",
+          "legendFormat": "lag",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "id": 26
+    },
+    {
       "type": "bargauge",
       "title": "상태별 검토 수",
       "description": "",
@@ -98,7 +281,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 1,
+        "y": 6,
         "w": 8,
         "h": 8
       },
@@ -140,7 +323,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 1,
+        "y": 6,
         "w": 8,
         "h": 8
       },
@@ -189,7 +372,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 1,
+        "y": 6,
         "w": 8,
         "h": 8
       },
@@ -238,7 +421,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 14,
         "w": 8,
         "h": 8
       },
@@ -280,7 +463,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 9,
+        "y": 14,
         "w": 8,
         "h": 8
       },
@@ -331,7 +514,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 9,
+        "y": 14,
         "w": 8,
         "h": 8
       },
@@ -344,7 +527,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 22,
         "w": 24,
         "h": 1
       },
@@ -386,7 +569,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 23,
         "w": 8,
         "h": 8
       },
@@ -428,7 +611,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 18,
+        "y": 23,
         "w": 8,
         "h": 8
       },
@@ -470,7 +653,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 18,
+        "y": 23,
         "w": 8,
         "h": 8
       },
@@ -519,7 +702,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 31,
         "w": 12,
         "h": 8
       },
@@ -568,7 +751,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 26,
+        "y": 31,
         "w": 12,
         "h": 8
       },
@@ -581,7 +764,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 39,
         "w": 24,
         "h": 1
       },
@@ -623,7 +806,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 40,
         "w": 8,
         "h": 8
       },
@@ -665,7 +848,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 35,
+        "y": 40,
         "w": 4,
         "h": 8
       },
@@ -714,7 +897,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 35,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -756,7 +939,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 48,
         "w": 24,
         "h": 9
       },
@@ -769,7 +952,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 52,
+        "y": 57,
         "w": 24,
         "h": 1
       },
@@ -811,7 +994,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 58,
         "w": 6,
         "h": 8
       },
@@ -853,7 +1036,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 53,
+        "y": 58,
         "w": 9,
         "h": 8
       },
@@ -895,7 +1078,7 @@
       },
       "gridPos": {
         "x": 15,
-        "y": 53,
+        "y": 58,
         "w": 9,
         "h": 8
       },
