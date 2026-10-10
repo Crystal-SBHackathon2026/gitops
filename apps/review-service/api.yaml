@@ -46,6 +46,9 @@ spec:
             - name: ARGOCD_WEBHOOK_TOKEN  # /webhooks/argocd 의 Bearer 토큰. 비어 있으면 503 (review-service#43 부터 fail-closed)
               valueFrom:
                 secretKeyRef: {name: review-service-secrets, key: ARGOCD_WEBHOOK_TOKEN, optional: true}
+            # 배포 진행 화면의 실제 환경 카드 — 배포 알림이 오는 환경. 기본값(aws,local)이면 도쿄(gcp)가 "계획" 카드로 나온다
+            - name: DEPLOY_ENVS
+              value: "aws,gcp,local"
             # 배포 진행 화면(/ui/reviews/{id})의 환경별 앱 주소 (review-service#50). http(s) 만 받는다.
             # aws 는 sample-app ingress ADDRESS (10/09 장애 뒤 새로 만든 ALB), local 은 로컬 k3s 의 sample-app 포트(localhost:8081)
             - name: APP_URLS
