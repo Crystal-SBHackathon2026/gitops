@@ -1,0 +1,5 @@
+[
+  {"env": "aws", "region": "ap-northeast-2", "cluster": "in-cluster"},
+  {"env": "gcp", "region": "asia-northeast1", "cluster": "tokyo-gke"},
+  {"env": "local", "region": "busan-local", "cluster": "crystal-busan"}
+]
