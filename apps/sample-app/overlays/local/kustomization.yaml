@@ -16,3 +16,8 @@ patches:
             value: local
           - name: DEPLOY_REGION
             value: busan-local
+          # 데모 캡처용 장애 주입. /api 요청을 100% 500 으로 떨어뜨린다.
+          # 카나리 응답 검사(api-ok)가 이걸 잡고 자동 중단하는 화면을 찍기 위한 것이고,
+          # 찍은 뒤 바로 되돌린다. 🔴 평상시 main 에 있어서는 안 되는 값이다.
+          - name: FAIL_RATE
+            value: '1'
