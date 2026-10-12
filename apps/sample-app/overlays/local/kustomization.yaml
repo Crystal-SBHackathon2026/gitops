@@ -16,8 +16,3 @@ patches:
             value: local
           - name: DEPLOY_REGION
             value: busan-local
-          # 데모 캡처용 배포 실패 주입. /healthz 가 실패해 새 파드가 Ready 가 되지 못한다.
-          # FAIL_RATE 와 달리 **결정적**이다 — 표본 운이 개입하지 않는다 (#75·#76 참고).
-          # 🔴 캡처 직후 되돌린다. main 에 남아 있어서는 안 되는 값이다.
-          - name: HEALTH_FAIL
-            value: 'true'
